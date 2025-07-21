@@ -11,13 +11,6 @@ export default class PeerManager {
 
     addPeer(socket: Socket) {
         const peer = new Peer(socket, this)
-        this.peers.push(peer)
-        peer.socket.on('close', () => {
-            peer.log('Client disconnected')
-            this.removePeer(peer)
-        })
-
-        this.saveState()
     }
 
     removePeer(peer: Peer) {
@@ -31,7 +24,7 @@ export default class PeerManager {
             const lastColonIndex = identifier.lastIndexOf(':');
             const address = identifier.slice(0, lastColonIndex);
             const port = identifier.slice(lastColonIndex + 1);
-            const socket = connect(parseInt(port || '0'), address || '')
+            const socket = connect(parseInt(port), address)
             this.addPeer(socket)
         })
     }

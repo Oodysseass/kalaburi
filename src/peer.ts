@@ -5,22 +5,36 @@ import PeerManager from './peermanager'
 
 export default class Peer {
     socket: Socket
-    id: string
     peerManager: PeerManager
+    id: string = ''
     buffer: string = ''
     handshaked: boolean = false
 
     constructor(socket: Socket, peerManager: PeerManager) {
         this.socket = socket
-        this.id = socket.remoteAddress + ':' + socket.remotePort
         this.peerManager = peerManager
         this.initializeSocket()
     }
 
     initializeSocket() {
-        this.log('Client connected')
-        this.sendHello()
-        this.sendGetPeers()
+        this.socket.on('connect', () => {
+            this.id = this.socket.remoteAddress + ':' + this.socket.remotePort
+            this.log('Client connected')
+            this.sendHello()
+            this.sendGetPeers()
+            this.peerManager.peers.push(this)
+            this.peerManager.saveState()
+        })
+
+        this.socket.on('close', () => {
+            this.log('Client disconnected')
+            this.peerManager.removePeer(this)
+        })
+
+        this.socket.on('error', (error) => {
+            this.log(`Client error: ${error}`)
+            this.socket.end()
+        })
 
         this.socket.on('data', (data) => {
             this.handleStream(data.toString())

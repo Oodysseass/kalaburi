@@ -10,18 +10,21 @@ export default class Peer {
     buffer: string = ''
     handshaked: boolean = false
 
-    constructor(socket: Socket, peerManager: PeerManager, initiateHandshake: boolean = false) {
+    constructor(socket: Socket, peerManager: PeerManager) {
         this.socket = socket
         this.id = socket.remoteAddress + ':' + socket.remotePort
         this.peerManager = peerManager
+        this.initializeSocket()
+    }
 
-        socket.on('data', (data) => {
+    initializeSocket() {
+        this.log('Client connected')
+        this.sendHello()
+        this.sendGetPeers()
+
+        this.socket.on('data', (data) => {
             this.handleStream(data.toString())
         })
-    
-        if (initiateHandshake) {
-            this.sendHello()
-        }
     }
 
     handleStream(data: string) {
@@ -32,19 +35,10 @@ export default class Peer {
             let message = messages.shift()?.trim() ?? '';
             this.log(`Received: ${message}`)
 
-            let request
             try {
-                request = JSON.parse(message)
-                this.handleRequest(request)
+                this.handleMessage(JSON.parse(message))
             } catch (_) {
-                const error = {
-                    type: 'error',
-                    error: 'INVALID_FORMAT',
-                    description: `Could not parse message: '${message}'`
-                }
-
-                this.socket.write(canonicalize(error) + '\n')
-                this.log(`Invalid JSON: ${message}`)
+                this.sendError('INVALID_FORMAT', `Could not parse message: '${message}'`)
             }
         }
 
@@ -55,21 +49,21 @@ export default class Peer {
         console.log(`[${this.id}] ${message}`)
     }
 
-    handleRequest(request: any) {
-        switch (request.type) {
+    handleMessage(message: any) {
+        switch (message.type) {
             case 'hello':
-                this.handleHello(request)
+                this.handleHello(message)
                 break
             case 'getpeers':
-                this.handleGetPeers(request)
+                this.handleGetPeers(message)
                 break
             case 'peers':
-                this.handlePeers(request)
+                this.handlePeers(message)
                 break
             case 'error':
                 break
             default:
-                this.sendError('INVALID_REQUEST', `Unknown request type: '${request.type}'`)
+                this.sendError('INVALID_FORMAT', `Unknown message type: '${message.type}'`)
         }
     }
 
@@ -80,7 +74,7 @@ export default class Peer {
             agent: AGENT
         }
 
-        this.sendResponse(hello)
+        this.sendMessage(hello)
     }
 
     sendGetPeers() {
@@ -88,20 +82,18 @@ export default class Peer {
             type: 'getpeers',
         }
 
-        this.sendResponse(getPeers)
+        this.sendMessage(getPeers)
     }
 
     sendPeers() {
-        const peers = this.peerManager.peers.map(peer => (
-            `${peer.socket.remoteAddress}:${peer.socket.remotePort}`
-        ))
+        const peers = this.peerManager.peers.map(peer => peer.id)
 
         const response = {
             type: 'peers',
-            peers: peers
+            peers
         }
 
-        this.sendResponse(response)
+        this.sendMessage(response)
     }
 
     sendError(error_name: string, error_description: string) {
@@ -111,15 +103,15 @@ export default class Peer {
             description: error_description
         }
 
-        this.sendResponse(error)
+        this.sendMessage(error)
     }
 
-    sendResponse(response: any) {
+    sendMessage(response: any) {
         this.socket.write(canonicalize(response) + '\n')
     }
 
-    handleHello(request: any) {
-        if (!matchesVersion(request.version)) {
+    handleHello(message: any) {
+        if (!matchesVersion(message.version)) {
             this.socket.end()
             return
         }
@@ -129,25 +121,29 @@ export default class Peer {
         }
 
         this.handshaked = true
-        this.sendHello()
-        this.sendGetPeers()
     }
 
-    handleGetPeers(request: any) {
+    handleGetPeers(message: any) {
         if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received request ${request.type} before handshake`)
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
             return
         }
 
         this.sendPeers()
     }
 
-    handlePeers(request: any) {
+    handlePeers(message: any) {
         if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received request ${request.type} before handshake`)
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            this.socket.end()
             return
         }
 
-        this.peerManager.saveState(request.peers)
+        if (message.peers.length === 0) {
+            this.sendError('INVALID_FORMAT', `Received message type ${message.type} without payload`)
+            return
+        }
+
+        this.peerManager.saveState(message.peers)
     }
 }

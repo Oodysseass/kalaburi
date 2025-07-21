@@ -11,4 +11,4 @@ export const matchesVersion = (version: string, pattern = "0.10.x") => {
     const [pMajor, pMinor] = pattern.split('.')
   
     return vMajor === pMajor && vMinor === pMinor
-  }
+}

@@ -9,10 +9,11 @@ export default class PeerManager {
         this.loadState()
     }
 
-    addPeer(socket: Socket, initiateHandshake: boolean = false) {
-        const peer = new Peer(socket, this, initiateHandshake)
+    addPeer(socket: Socket) {
+        const peer = new Peer(socket, this)
         this.peers.push(peer)
         peer.socket.on('close', () => {
+            peer.log('Client disconnected')
             this.removePeer(peer)
         })
 
@@ -21,22 +22,23 @@ export default class PeerManager {
 
     removePeer(peer: Peer) {
         this.peers = this.peers.filter(p => p.id !== peer.id)
-        this.saveState()
     }
 
     loadState() {
+        console.log('Loading state')
         const identifiers = loadPeers()
         identifiers.forEach((identifier: string) => {
-            const [address, port] = identifier.split(':')
+            const lastColonIndex = identifier.lastIndexOf(':');
+            const address = identifier.slice(0, lastColonIndex);
+            const port = identifier.slice(lastColonIndex + 1);
             const socket = connect(parseInt(port || '0'), address || '')
-            console.log(`Connected to ${address}:${port}`)
-            this.addPeer(socket, true)
+            this.addPeer(socket)
         })
     }
 
     saveState(addresses: string[] = []) {
-        const peerAddresses = this.peers.map(p => `${p.socket.remoteAddress}:${p.socket.remotePort}`);
-        const allAddresses = [...peerAddresses, ...addresses];
-        savePeers(allAddresses);
+        const peerAddresses = this.peers.map(p => p.id)
+        const allAddresses = [...peerAddresses, ...addresses]
+        savePeers(allAddresses)
     }
 }

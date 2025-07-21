@@ -10,7 +10,7 @@ export default class PeerManager {
     }
 
     addPeer(socket: Socket) {
-        const peer = new Peer(socket, this)
+        new Peer(socket, this)
     }
 
     removePeer(peer: Peer) {

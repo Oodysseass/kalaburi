@@ -17,14 +17,12 @@ export default class Peer {
     }
 
     initializeSocket() {
-        this.socket.on('connect', () => {
-            this.id = this.socket.remoteAddress + ':' + this.socket.remotePort
-            this.log('Client connected')
-            this.sendHello()
-            this.sendGetPeers()
-            this.peerManager.peers.push(this)
-            this.peerManager.saveState()
-        })
+        // Seperate the initialization for incoming and outgoing connections
+        if (this.socket.remoteAddress && this.socket.remotePort) {
+            this.onConnect()
+        } else {
+            this.socket.on('connect', () => this.onConnect())
+        }
 
         this.socket.on('close', () => {
             this.log('Client disconnected')
@@ -39,6 +37,15 @@ export default class Peer {
         this.socket.on('data', (data) => {
             this.handleStream(data.toString())
         })
+    }
+
+    onConnect() {
+        this.id = this.socket.remoteAddress + ':' + this.socket.remotePort
+        this.log('Client connected')
+        this.sendHello()
+        this.sendGetPeers()
+        this.peerManager.peers.push(this)
+        this.peerManager.saveState()
     }
 
     handleStream(data: string) {

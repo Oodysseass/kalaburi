@@ -2,6 +2,7 @@ import { Socket } from 'net'
 import canonicalize from 'canonicalize'
 import { VERSION, AGENT, matchesVersion } from './utils'
 import PeerManager from './peermanager'
+import { objectManager } from './object'
 
 export default class Peer {
     socket: Socket
@@ -81,6 +82,15 @@ export default class Peer {
             case 'peers':
                 this.handlePeers(message)
                 break
+            case 'ihaveobject':
+                this.handleIHaveObject(message)
+                break
+            case 'getobject':
+                this.handleGetObject(message)
+                break
+            case 'object':
+                this.handleObject(message)
+                break
             case 'error':
                 break
             default:
@@ -112,6 +122,25 @@ export default class Peer {
         const response = {
             type: 'peers',
             peers
+        }
+
+        this.sendMessage(response)
+    }
+
+    sendGetObject(objectid: string) {
+        const getObject = {
+            type: 'getobject',
+            objectid
+        }
+
+        this.sendMessage(getObject)
+    }
+
+    async sendObject(objectid: string) {
+        const object = await objectManager.get(objectid)
+        const response = {
+            type: 'object',
+            object
         }
 
         this.sendMessage(response)
@@ -166,5 +195,68 @@ export default class Peer {
         }
 
         this.peerManager.saveState(message.peers)
+    }
+
+    async handleIHaveObject(message: any) {
+        if (!this.handshaked) {
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            return
+        }
+
+        if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
+            this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
+            return
+        }
+
+        if (await objectManager.exists(message.objectid)) {
+            console.log('it exists????')
+            return
+        }
+
+        this.sendGetObject(message.objectid)
+    }
+
+    async handleGetObject(message: any) {
+        if (!this.handshaked) {
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            return
+        }
+
+        if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
+            this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
+            return
+        }
+
+        if (await objectManager.exists(message.objectid)) {
+            this.sendObject(message.objectid)
+            return
+        }
+
+        this.sendError('UNKNOWN_OBJECT', `Object ${message.objectid} not found`)
+    }
+
+    async handleObject(message: any) {
+        if (!this.handshaked) {
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            return
+        }
+
+        const objectid = objectManager.id(message.object)
+        console.log('objectid', objectid)
+        console.log('message.object', message.object)
+        if (await objectManager.exists(objectid)) {
+            return
+        }
+
+        if (!objectManager.validate(message.object)) {
+            this.sendError('INVALID_OBJECT', `Object ${message.objectid} is invalid`)
+            return
+        }
+
+        objectManager.add(message.object)
+        this.peerManager.broadcast({
+            type: 'ihaveobject',
+            objectid
+        })
     }
 }

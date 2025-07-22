@@ -34,4 +34,8 @@ export default class PeerManager {
         const allAddresses = [...peerAddresses, ...addresses]
         savePeers(allAddresses)
     }
+
+    broadcast(message: any) {
+        this.peers.forEach(p => p.sendMessage(message))
+    }
 }

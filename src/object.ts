@@ -24,7 +24,7 @@ class ObjectManager {
         return await db.get(id)
     }
 
-    validate(object: any) {
+    validateTransaction(object: any) {
         return true
     }
 }

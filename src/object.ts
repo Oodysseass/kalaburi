@@ -1,31 +1,47 @@
 import { Level } from 'level'
 import canonicalize from 'canonicalize'
 import { hash } from './utils'
+import { Transaction } from './transaction'
+import type { NetworkObject, Hash } from './types'
 
-export const db = new Level<string, any>('./db', {
+export const db = new Level<Hash, NetworkObject>('./db', {
     valueEncoding: 'json'
 })
 
+const fromObject = {
+    transaction: Transaction.fromObject,
+}
+
 class ObjectManager {
-    id(object: any) {
+    id(object: NetworkObject) {
         return hash(canonicalize(object))
     }
 
-    async exists(id: string) {
-        return typeof await db.get(id) !== 'undefined'
+    async exists(id: Hash) {
+        try {
+            return await db.get(id)
+        } catch (err) {
+            return false
+        }
     }
 
-    async add(object: any) {
+    async add(object: NetworkObject) {
         const id = this.id(object)
         await db.put(id, object)
     }
 
-    async get(id: string) {
+    async get(id: Hash) {
         return await db.get(id)
     }
 
-    validateTransaction(object: any) {
-        return true
+    validate(networkObject: NetworkObject) {
+        const transformer = fromObject[networkObject.type]
+        const object = transformer(networkObject)
+        try {
+            return object.validate()
+        } catch (err: any) {
+            throw err
+        }
     }
 }
 

@@ -3,6 +3,16 @@ import canonicalize from 'canonicalize'
 import { VERSION, AGENT, matchesVersion } from './utils'
 import PeerManager from './peermanager'
 import { objectManager } from './object'
+import { MessageSchema } from './types'
+import type {
+    Message,
+    HelloMessage,
+    PeersMessage,
+    IHaveObjectMessage,
+    GetObjectMessage,
+    ObjectMessage,
+    ErrorMessage,
+} from './types'
 
 export default class Peer {
     socket: Socket
@@ -10,6 +20,16 @@ export default class Peer {
     id: string = ''
     buffer: string = ''
     handshaked: boolean = false
+    handlers: Record<Message['type'], (message: Message) => void | Promise<void>> = {
+        hello: (m) => this.handleHello(m as HelloMessage),
+        getpeers: () => this.handleGetPeers(),
+        peers: (m) => this.handlePeers(m as PeersMessage),
+        ihaveobject: (m) => this.handleIHaveObject(m as IHaveObjectMessage),
+        getobject: (m) => this.handleGetObject(m as GetObjectMessage),
+        object: (m) => this.handleObject(m as ObjectMessage),
+        error: (m) => this.handleError(m as ErrorMessage),
+    }
+
 
     constructor(socket: Socket, peerManager: PeerManager) {
         this.socket = socket
@@ -54,14 +74,10 @@ export default class Peer {
         let messages = this.buffer.split('\n')
 
         while (messages.length > 1) {
-            let message = messages.shift()?.trim() ?? '';
+            let message = messages.shift()?.trim() ?? ''
             this.log(`Received: ${message}`)
 
-            try {
-                this.handleMessage(JSON.parse(message))
-            } catch (_) {
-                this.sendError('INVALID_FORMAT', `Could not parse message: '${message}'`)
-            }
+            this.handleMessage(message)
         }
 
         this.buffer = messages[0] ?? ''
@@ -71,31 +87,30 @@ export default class Peer {
         console.log(`[${this.id}] ${message}`)
     }
 
-    handleMessage(message: any) {
-        switch (message.type) {
-            case 'hello':
-                this.handleHello(message)
-                break
-            case 'getpeers':
-                this.handleGetPeers(message)
-                break
-            case 'peers':
-                this.handlePeers(message)
-                break
-            case 'ihaveobject':
-                this.handleIHaveObject(message)
-                break
-            case 'getobject':
-                this.handleGetObject(message)
-                break
-            case 'object':
-                this.handleObject(message)
-                break
-            case 'error':
-                break
-            default:
-                this.sendError('INVALID_FORMAT', `Unknown message type: '${message.type}'`)
+    handleMessage(msg: string) {
+        let message: Message
+
+        try {
+            message = JSON.parse(msg) as Message
+        } catch (_) {
+            this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
+            return
         }
+
+        try {
+            message = MessageSchema.parse(message)
+        } catch (err: any) {
+            console.error(err)
+            this.sendError('INVALID_FORMAT', 'Unknown message type')
+            return
+        }
+
+        if (!this.handshaked && message.type !== 'hello') {
+            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            return
+        }
+
+        this.handlers[message.type](message)
     }
 
     sendHello() {
@@ -127,6 +142,15 @@ export default class Peer {
         this.sendMessage(response)
     }
 
+    sendIHaveObject(objectid: string) {
+        const iHaveObject = {
+            type: 'ihaveobject',
+            objectid
+        }
+
+        this.peerManager.broadcast(iHaveObject)
+    }
+
     sendGetObject(objectid: string) {
         const getObject = {
             type: 'getobject',
@@ -146,11 +170,11 @@ export default class Peer {
         this.sendMessage(response)
     }
 
-    sendError(error_name: string, error_description: string) {
+    sendError(name: string, message: string) {
         const error = {
             type: 'error',
-            error: error_name,
-            description: error_description
+            error: name,
+            description: message
         }
 
         this.sendMessage(error)
@@ -160,7 +184,7 @@ export default class Peer {
         this.socket.write(canonicalize(response) + '\n')
     }
 
-    handleHello(message: any) {
+    handleHello(message: HelloMessage) {
         if (!matchesVersion(message.version)) {
             this.socket.end()
             return
@@ -173,22 +197,11 @@ export default class Peer {
         this.handshaked = true
     }
 
-    handleGetPeers(message: any) {
-        if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            return
-        }
-
+    handleGetPeers() {
         this.sendPeers()
     }
 
-    handlePeers(message: any) {
-        if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            this.socket.end()
-            return
-        }
-
+    handlePeers(message: PeersMessage) {
         if (message.peers.length === 0) {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} without payload`)
             return
@@ -197,31 +210,20 @@ export default class Peer {
         this.peerManager.saveState(message.peers)
     }
 
-    async handleIHaveObject(message: any) {
-        if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            return
-        }
-
+    async handleIHaveObject(message: IHaveObjectMessage) {
         if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
             return
         }
 
         if (await objectManager.exists(message.objectid)) {
-            console.log('it exists????')
             return
         }
 
         this.sendGetObject(message.objectid)
     }
 
-    async handleGetObject(message: any) {
-        if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            return
-        }
-
+    async handleGetObject(message: GetObjectMessage) {
         if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
             return
@@ -235,28 +237,25 @@ export default class Peer {
         this.sendError('UNKNOWN_OBJECT', `Object ${message.objectid} not found`)
     }
 
-    async handleObject(message: any) {
-        if (!this.handshaked) {
-            this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            return
-        }
-
+    async handleObject(message: ObjectMessage) {
         const objectid = objectManager.id(message.object)
-        console.log('objectid', objectid)
-        console.log('message.object', message.object)
         if (await objectManager.exists(objectid)) {
             return
         }
 
-        if (!objectManager.validate(message.object)) {
-            this.sendError('INVALID_OBJECT', `Object ${message.objectid} is invalid`)
+        try {
+            objectManager.validate(message.object)
+        } catch (err: any) {
+            console.error(err)
+            this.sendError(err.name, err.message)
             return
         }
 
         objectManager.add(message.object)
-        this.peerManager.broadcast({
-            type: 'ihaveobject',
-            objectid
-        })
+        this.sendIHaveObject(objectid)
+    }
+
+    handleError(message: ErrorMessage) {
+        this.log(`${message.error}:${message.description}`)
     }
 }

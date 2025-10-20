@@ -21,9 +21,9 @@ export default class PeerManager {
         console.log('Loading state')
         const identifiers = loadPeers()
         identifiers.forEach((identifier: string) => {
-            const lastColonIndex = identifier.lastIndexOf(':');
-            const address = identifier.slice(0, lastColonIndex);
-            const port = identifier.slice(lastColonIndex + 1);
+            const lastColonIndex = identifier.lastIndexOf(':')
+            const address = identifier.slice(0, lastColonIndex)
+            const port = identifier.slice(lastColonIndex + 1)
             const socket = connect(parseInt(port), address)
             this.addPeer(socket)
         })

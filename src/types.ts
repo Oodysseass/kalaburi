@@ -1,0 +1,92 @@
+import { z } from 'zod'
+
+export const HashSchema = z.string()
+
+export const SigSchema = z.string()
+
+export const PubKeySchema = z.string()
+
+export const OutpointObjectSchema = z.object({
+    txid: HashSchema,
+    index: z.number().nonnegative(),
+})
+
+export const InputObjectSchema = z.object({
+    outpoint: OutpointObjectSchema,
+    sig: SigSchema,
+})
+
+export const OutputObjectSchema = z.object({
+    pubkey: PubKeySchema,
+    value: z.number().nonnegative(),
+})
+
+export const TransactionObjectSchema = z.object({
+    type: z.literal('transaction'),
+    inputs: z.array(InputObjectSchema).optional(),
+    outputs: z.array(OutputObjectSchema).min(1),
+    height: z.number().optional(),
+})
+
+export const NetworkObjectSchema = z.discriminatedUnion('type', [
+    TransactionObjectSchema,
+])
+
+export const HelloMessageSchema = z.object({
+    type: z.literal('hello'),
+    version: z.string(),
+    agent: z.string()
+})
+
+export const GetPeersMessageSchema = z.object({
+    type: z.literal('getpeers')
+})
+
+export const PeersMessageSchema = z.object({
+    type: z.literal('peers'),
+    peers: z.array(z.string()).min(1)
+})
+
+export const IHaveObjectMessageSchema = z.object({
+    type: z.literal('ihaveobject'),
+    objectid: HashSchema
+})
+
+export const GetObjectMessageSchema = z.object({
+    type: z.literal('getobject'),
+    objectid: HashSchema
+})
+
+export const ObjectMessageSchema = z.object({
+    type: z.literal('object'),
+    object: NetworkObjectSchema
+})
+
+export const ErrorMessageSchema = z.object({
+    type: z.literal('error'),
+    error: z.string(),
+    description: z.string()
+})
+
+export const MessageSchema = z.discriminatedUnion('type', [
+    HelloMessageSchema, GetPeersMessageSchema, PeersMessageSchema,
+    IHaveObjectMessageSchema, GetObjectMessageSchema, ObjectMessageSchema,
+    ErrorMessageSchema
+])
+
+export type Hash = z.infer<typeof HashSchema>
+export type Sig = z.infer<typeof SigSchema>
+export type PubKey = z.infer<typeof PubKeySchema>
+export type OutpointObject = z.infer<typeof OutpointObjectSchema>
+export type InputObject = z.infer<typeof InputObjectSchema>
+export type OutputObject = z.infer<typeof OutputObjectSchema>
+export type TransactionObject = z.infer<typeof TransactionObjectSchema>
+export type NetworkObject = z.infer<typeof NetworkObjectSchema>
+export type HelloMessage = z.infer<typeof HelloMessageSchema>
+export type GetPeersMessage = z.infer<typeof GetPeersMessageSchema>
+export type PeersMessage = z.infer<typeof PeersMessageSchema>
+export type IHaveObjectMessage = z.infer<typeof IHaveObjectMessageSchema>
+export type GetObjectMessage = z.infer<typeof GetObjectMessageSchema>
+export type ObjectMessage = z.infer<typeof ObjectMessageSchema>
+export type ErrorMessage = z.infer<typeof ErrorMessageSchema>
+export type Message = z.infer<typeof MessageSchema>

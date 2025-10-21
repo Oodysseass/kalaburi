@@ -59,7 +59,8 @@ export default class Peer {
         this.log('Client connected')
         this.sendHello()
         this.sendGetPeers()
-        this.peerManager.peers.add(this)
+        this.peerManager.activePeers.add(this)
+        this.peerManager.knownAddresses.add(this.id)
         this.peerManager.saveState()
     }
 
@@ -88,6 +89,7 @@ export default class Peer {
             message = JSON.parse(msg) as Message
         } catch (_) {
             this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
+            this.socket.end()
             return
         }
 
@@ -96,11 +98,13 @@ export default class Peer {
         } catch (err: any) {
             console.error(err)
             this.sendError('INVALID_FORMAT', 'Unknown message type')
+            this.socket.end()
             return
         }
 
         if (!this.handshaked && message.type !== 'hello') {
             this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            this.socket.end()
             return
         }
 
@@ -126,7 +130,7 @@ export default class Peer {
     }
 
     sendPeers() {
-        const peers = Array.from(this.peerManager.peers).map(p => p.id)
+        const peers = Array.from(this.peerManager.knownAddresses)
 
         const response = {
             type: 'peers',
@@ -201,8 +205,10 @@ export default class Peer {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} without payload`)
             return
         }
+        // TODO: add peer address validation
 
-        this.peerManager.saveState(message.peers)
+        message.peers.forEach(peer => this.peerManager.knownAddresses.add(peer))
+        this.peerManager.saveState()
     }
 
     async handleIHaveObject(message: IHaveObjectMessage) {

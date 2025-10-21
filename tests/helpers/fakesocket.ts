@@ -3,32 +3,92 @@ import type { Socket } from 'net'
 
 export class FakeSocket extends Duplex {
     public written: string[] = []
-    constructor(public id: string) { super({ objectMode: true }) }
+    public closed = false
+    public ended = false
+    private _remoteAddress: string
+    private _remotePort: number
+    private _localAddress: string
+    private _localPort: number
+
+    constructor(public id: string, opts: {
+      remoteAddress?: string
+      remotePort?: number
+      localAddress?: string
+      localPort?: number
+    } = {}) {
+      super({ objectMode: true })
+      this._remoteAddress = opts.remoteAddress ?? '127.0.0.1'
+      this._remotePort = opts.remotePort ?? (40000 + Math.floor(Math.random() * 1000))
+      this._localAddress = opts.localAddress ?? '127.0.0.1'
+      this._localPort = opts.localPort ?? 18018
+
+      queueMicrotask(() => (this as any).emit('connect'))
+    }
+
+    get remoteAddress() { return this._remoteAddress }
+    get remotePort()    { return this._remotePort }
+    get localAddress()  { return this._localAddress }
+    get localPort()     { return this._localPort }
+
     _read() { }
+
     _write(chunk: any, _enc: any, cb: any) {
         this.written.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk))
         cb()
     }
+
+    end(): this {
+        this.ended = true
+            ; (this as any).emit('end')
+            ; (this as any).emit('close')
+        this.closed = true
+        return this
+    }
+
+    override destroy(err?: Error): this {
+        if (err) (this as any).emit('error', err)
+            ; (this as any).emit('close')
+        this.closed = true
+        return this
+    }
+
     asNetSocket(): Socket {
         return this as unknown as Socket
     }
+
+    feedBytes(buf: Buffer | string) {
+        const b = typeof buf === 'string' ? Buffer.from(buf, 'utf8') : buf
+            ; (this as any).emit('data', b)
+    }
+
+    feedJSON(obj: unknown) {
+        this.feedBytes(JSON.stringify(obj) + '\n')
+    }
+
+    clearWritten() {
+        this.written.length = 0
+    }
 }
 
-export function pushJSON(sock: FakeSocket, msg: unknown) {
-    const line = JSON.stringify(msg) + '\n'
-        ; (sock as any).emit('data', Buffer.from(line, 'utf8'))
-}
-
-export function findWritten(sock: FakeSocket, predicate: (m: any) => boolean) {
+export function iterWrittenJSON(sock: FakeSocket): any[] {
+    const out: any[] = []
     for (const chunk of sock.written) {
         for (const line of chunk.split('\n')) {
-            const s = line.trim()
-            if (!s) continue
+            const t = line.trim()
+            if (!t) continue
             try {
-                const obj = JSON.parse(s)
-                if (predicate(obj)) return obj
+                out.push(JSON.parse(t))
             } catch { }
         }
     }
-    return undefined
+    return out
 }
+
+export const findFirst = (msgs: any[], pred: (m: any) => boolean) =>
+    msgs.find(pred)
+
+export const findIndex = (msgs: any[], pred: (m: any) => boolean) =>
+    msgs.findIndex(pred)
+
+export const countType = (msgs: any[], type: string) =>
+    msgs.filter(m => m?.type === type).length

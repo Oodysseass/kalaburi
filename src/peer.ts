@@ -180,6 +180,7 @@ export default class Peer {
 
     handleHello(message: HelloMessage) {
         if (!matchesVersion(message.version)) {
+            this.sendError('INVALID_FORMAT', `Received hello with invalid version "${message.version}"`)
             this.socket.end()
             return
         }

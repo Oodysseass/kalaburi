@@ -231,7 +231,7 @@ export default class Peer {
         }
 
         if (await objectManager.exists(message.objectid)) {
-            this.sendObject(message.objectid)
+            await this.sendObject(message.objectid)
             return
         }
 

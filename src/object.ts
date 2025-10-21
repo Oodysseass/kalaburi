@@ -4,22 +4,23 @@ import { hash } from './utils'
 import { Transaction } from './transaction'
 import type { NetworkObject, Hash } from './types'
 
-export const db = new Level<Hash, NetworkObject>('./db', {
-    valueEncoding: 'json'
-})
+export const makeDB = (path = './db') => new Level<Hash, NetworkObject>(path, { valueEncoding: 'json' })
 
 const fromObject = {
     transaction: Transaction.fromObject,
 }
 
-class ObjectManager {
+export class ObjectManager {
+    constructor(private _db = makeDB()) {}
+    get db() { return this._db }
+
     id(object: NetworkObject) {
         return hash(canonicalize(object))
     }
 
     async exists(id: Hash) {
         try {
-            return await db.get(id)
+            return await this._db.get(id)
         } catch (err) {
             return false
         }
@@ -27,11 +28,11 @@ class ObjectManager {
 
     async add(object: NetworkObject) {
         const id = this.id(object)
-        await db.put(id, object)
+        await this._db.put(id, object)
     }
 
     async get(id: Hash) {
-        return await db.get(id)
+        return await this._db.get(id)
     }
 
     validate(networkObject: NetworkObject) {

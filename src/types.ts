@@ -44,7 +44,7 @@ export const GetPeersMessageSchema = z.object({
 
 export const PeersMessageSchema = z.object({
     type: z.literal('peers'),
-    peers: z.array(z.string()).min(1)
+    peers: z.array(z.string())
 })
 
 export const IHaveObjectMessageSchema = z.object({

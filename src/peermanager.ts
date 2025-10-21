@@ -3,18 +3,19 @@ import Peer from './peer'
 import { loadPeers, savePeers } from './persistence'
 
 export default class PeerManager {
-    peers: Peer[] = []
+    peers: Set<Peer> = new Set()
 
     constructor() {
         this.loadState()
     }
 
     addPeer(socket: Socket) {
-        new Peer(socket, this)
+        const p = new Peer(socket, this)
+        p.onConnect()
     }
 
     removePeer(peer: Peer) {
-        this.peers = this.peers.filter(p => p.id !== peer.id)
+        this.peers.delete(peer)
     }
 
     loadState() {
@@ -25,17 +26,17 @@ export default class PeerManager {
             const address = identifier.slice(0, lastColonIndex)
             const port = identifier.slice(lastColonIndex + 1)
             const socket = connect(parseInt(port), address)
-            this.addPeer(socket)
+            new Peer(socket, this)
         })
     }
 
     saveState(addresses: string[] = []) {
-        const peerAddresses = this.peers.map(p => p.id)
-        const allAddresses = [...peerAddresses, ...addresses]
+        const peerAddresses = Array.from(this.peers).map(p => p.id)
+        const allAddresses = Array.from(new Set([...peerAddresses, ...addresses]))
         savePeers(allAddresses)
     }
 
     broadcast(message: any) {
-        this.peers.forEach(p => p.sendMessage(message))
+        Object.values(this.peers).forEach(p => p.sendMessage(message))
     }
 }

@@ -30,7 +30,6 @@ export default class Peer {
         error: (m) => this.handleError(m as ErrorMessage),
     }
 
-
     constructor(socket: Socket, peerManager: PeerManager) {
         this.socket = socket
         this.peerManager = peerManager
@@ -38,12 +37,7 @@ export default class Peer {
     }
 
     initializeSocket() {
-        // Seperate the initialization for incoming and outgoing connections
-        if (this.socket.remoteAddress && this.socket.remotePort) {
-            this.onConnect()
-        } else {
-            this.socket.on('connect', () => this.onConnect())
-        }
+        this.socket.on('connect', () => this.onConnect())
 
         this.socket.on('close', () => {
             this.log('Client disconnected')
@@ -65,7 +59,7 @@ export default class Peer {
         this.log('Client connected')
         this.sendHello()
         this.sendGetPeers()
-        this.peerManager.peers.push(this)
+        this.peerManager.peers.add(this)
         this.peerManager.saveState()
     }
 
@@ -132,7 +126,7 @@ export default class Peer {
     }
 
     sendPeers() {
-        const peers = this.peerManager.peers.map(peer => peer.id)
+        const peers = Array.from(this.peerManager.peers).map(p => p.id)
 
         const response = {
             type: 'peers',

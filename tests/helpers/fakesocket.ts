@@ -11,24 +11,22 @@ export class FakeSocket extends Duplex {
     private _localPort: number
 
     constructor(public id: string, opts: {
-      remoteAddress?: string
-      remotePort?: number
-      localAddress?: string
-      localPort?: number
+        remoteAddress?: string
+        remotePort?: number
+        localAddress?: string
+        localPort?: number
     } = {}) {
-      super({ objectMode: true })
-      this._remoteAddress = opts.remoteAddress ?? '127.0.0.1'
-      this._remotePort = opts.remotePort ?? (40000 + Math.floor(Math.random() * 1000))
-      this._localAddress = opts.localAddress ?? '127.0.0.1'
-      this._localPort = opts.localPort ?? 18018
-
-      queueMicrotask(() => (this as any).emit('connect'))
+        super({ objectMode: true })
+        this._remoteAddress = opts.remoteAddress ?? '127.0.0.1'
+        this._remotePort = opts.remotePort ?? (40000 + Math.floor(Math.random() * 1000))
+        this._localAddress = opts.localAddress ?? '127.0.0.1'
+        this._localPort = opts.localPort ?? 18018
     }
 
     get remoteAddress() { return this._remoteAddress }
-    get remotePort()    { return this._remotePort }
-    get localAddress()  { return this._localAddress }
-    get localPort()     { return this._localPort }
+    get remotePort() { return this._remotePort }
+    get localAddress() { return this._localAddress }
+    get localPort() { return this._localPort }
 
     _read() { }
 
@@ -92,3 +90,16 @@ export const findIndex = (msgs: any[], pred: (m: any) => boolean) =>
 
 export const countType = (msgs: any[], type: string) =>
     msgs.filter(m => m?.type === type).length
+
+export const waitForWrite = (sock: FakeSocket, pred: (m: any) => boolean) =>
+    new Promise<any>((resolve, reject) => {
+        const start = Date.now()
+        const tick = () => {
+            const m = findFirst(iterWrittenJSON(sock), pred)
+            if (m) return resolve(m)
+            if (Date.now() - start > 1000) return reject(new Error('timeout'))
+            setTimeout(tick, 5)
+        }
+        tick()
+    }
+)

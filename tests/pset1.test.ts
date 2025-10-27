@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from '@jest/globals'
 import PeerManager from '../src/peermanager'
-import { FakeSocket, iterWrittenJSON, findFirst, findIndex } from './helpers/fakesocket'
+import { FakeSocket, iterWrittenJSON, findFirst, findIndex, waitForWrite } from './helpers/fakesocket'
 
 let pm: any
 beforeEach(() => {
@@ -45,7 +44,7 @@ describe('4) disconnect → reconnect', () => {
 })
 
 describe('5) getpeers -> peers (post-handshake)', () => {
-    it('replies with peers after remote hello', () => {
+    it('replies with peers after remote hello', async () => {
         const s = new FakeSocket('D')
         pm.addPeer(s.asNetSocket())
 
@@ -53,8 +52,7 @@ describe('5) getpeers -> peers (post-handshake)', () => {
         s.clearWritten()
 
         s.feedJSON({ type: 'getpeers' })
-        const msgs = iterWrittenJSON(s)
-        const peersMsg = findFirst(msgs, m => m?.type === 'peers' && Array.isArray(m.peers))
+        const peersMsg = await waitForWrite(s, m => m?.type === 'peers' && Array.isArray(m.peers))
         expect(peersMsg).toBeDefined()
     })
 })
@@ -70,8 +68,7 @@ describe('6) chunked framing ("ge" + "tpeers")', () => {
         s.feedBytes('{"type":"ge')
         s.feedBytes('tpeers"}\n')
 
-        const msgs = iterWrittenJSON(s)
-        const peersMsg = findFirst(msgs, m => m?.type === 'peers')
+        const peersMsg = await waitForWrite(s, m => m?.type === 'peers')
         expect(peersMsg).toBeDefined()
     })
 })
@@ -155,7 +152,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
 })
 
 describe('9) peers persist across reconnect', () => {
-    it('remembers peers from previous session', () => {
+    it('remembers peers from previous session', async () => {
         const givenPeers = ['10.0.0.2:18018']
 
         const s1 = new FakeSocket('H1')
@@ -171,8 +168,7 @@ describe('9) peers persist across reconnect', () => {
 
         s2.feedJSON({ type: 'getpeers' })
 
-        const msgs2 = iterWrittenJSON(s2)
-        const peersMsg = msgs2.find(m => m?.type === 'peers' && Array.isArray(m.peers))
+        const peersMsg = await waitForWrite(s2, m => m?.type === 'peers' && Array.isArray(m.peers))
         expect(peersMsg).toBeDefined()
 
         const returned: string[] = peersMsg!.peers

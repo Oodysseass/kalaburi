@@ -13,7 +13,7 @@ export const OutpointObjectSchema = z.object({
 
 export const InputObjectSchema = z.object({
     outpoint: OutpointObjectSchema,
-    sig: SigSchema,
+    sig: SigSchema.nullable(),
 })
 
 export const OutputObjectSchema = z.object({

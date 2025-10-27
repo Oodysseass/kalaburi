@@ -20,14 +20,14 @@ export default class Peer {
     id: string = ''
     buffer: string = ''
     handshaked: boolean = false
-    handlers: Record<Message['type'], (message: Message) => void | Promise<void>> = {
-        hello: (m) => this.handleHello(m as HelloMessage),
-        getpeers: () => this.handleGetPeers(),
-        peers: (m) => this.handlePeers(m as PeersMessage),
-        ihaveobject: (m) => this.handleIHaveObject(m as IHaveObjectMessage),
-        getobject: (m) => this.handleGetObject(m as GetObjectMessage),
-        object: (m) => this.handleObject(m as ObjectMessage),
-        error: (m) => this.handleError(m as ErrorMessage),
+    handlers: Record<Message['type'], (message: Message) => Promise<void>> = {
+        hello: async (m) => await this.handleHello(m as HelloMessage),
+        getpeers: async () => await this.handleGetPeers(),
+        peers: async (m) => await this.handlePeers(m as PeersMessage),
+        ihaveobject: async (m) => await this.handleIHaveObject(m as IHaveObjectMessage),
+        getobject: async (m) => await this.handleGetObject(m as GetObjectMessage),
+        object: async (m) => await this.handleObject(m as ObjectMessage),
+        error: async (m) => await this.handleError(m as ErrorMessage),
     }
 
     constructor(socket: Socket, peerManager: PeerManager) {
@@ -37,15 +37,17 @@ export default class Peer {
     }
 
     initializeSocket() {
-        this.socket.on('connect', () => this.onConnect())
+        this.socket.on('connect', () => this.onConnect.bind(this))
 
         this.socket.on('close', () => {
+            if (process.env.NODE_ENV === 'test') return
             this.log('Client disconnected')
             this.peerManager.removePeer(this)
         })
 
         this.socket.on('error', (error) => {
-            this.log(`Client error: ${error}`)
+            if (process.env.NODE_ENV === 'test') return
+            console.error(`Client error: ${error}`)
             this.socket.end()
         })
 
@@ -72,7 +74,7 @@ export default class Peer {
             let message = messages.shift()?.trim() ?? ''
             this.log(`Received: ${message}`)
 
-            this.handleMessage(message)
+            this.handleMessage.bind(this)(message)
         }
 
         this.buffer = messages[0] ?? ''
@@ -82,7 +84,7 @@ export default class Peer {
         console.log(`[${this.id}] ${message}`)
     }
 
-    handleMessage(msg: string) {
+    async handleMessage(msg: string) {
         let message: Message
 
         try {
@@ -108,10 +110,16 @@ export default class Peer {
             return
         }
 
-        this.handlers[message.type](message)
+        await this.handlers[message.type](message)
+            .then(() => true)
+            .catch((err: any) => {
+                console.error(err)
+                this.sendError(err.name, err.message)
+                return false
+            })
     }
 
-    sendHello() {
+    async sendHello() {
         const hello = {
             type: 'hello',
             version: VERSION,
@@ -121,7 +129,7 @@ export default class Peer {
         this.sendMessage(hello)
     }
 
-    sendGetPeers() {
+    async sendGetPeers() {
         const getPeers = {
             type: 'getpeers',
         }
@@ -129,7 +137,7 @@ export default class Peer {
         this.sendMessage(getPeers)
     }
 
-    sendPeers() {
+    async sendPeers() {
         const peers = Array.from(this.peerManager.knownAddresses)
 
         const response = {
@@ -140,7 +148,7 @@ export default class Peer {
         this.sendMessage(response)
     }
 
-    sendIHaveObject(objectid: string) {
+    async sendIHaveObject(objectid: string) {
         const iHaveObject = {
             type: 'ihaveobject',
             objectid
@@ -149,7 +157,7 @@ export default class Peer {
         this.peerManager.broadcast(iHaveObject)
     }
 
-    sendGetObject(objectid: string) {
+    async sendGetObject(objectid: string) {
         const getObject = {
             type: 'getobject',
             objectid
@@ -168,7 +176,7 @@ export default class Peer {
         this.sendMessage(response)
     }
 
-    sendError(name: string, message: string) {
+    async sendError(name: string, message: string) {
         const error = {
             type: 'error',
             error: name,
@@ -178,11 +186,12 @@ export default class Peer {
         this.sendMessage(error)
     }
 
-    sendMessage(response: any) {
-        this.socket.write(canonicalize(response) + '\n')
+    sendMessage(msg: any) {
+        const message = canonicalize(msg) + '\n'
+        this.socket.write(message)
     }
 
-    handleHello(message: HelloMessage) {
+    async handleHello(message: HelloMessage) {
         if (!matchesVersion(message.version)) {
             this.sendError('INVALID_FORMAT', `Received hello with invalid version "${message.version}"`)
             this.socket.end()
@@ -196,11 +205,11 @@ export default class Peer {
         this.handshaked = true
     }
 
-    handleGetPeers() {
+    async handleGetPeers() {
         this.sendPeers()
     }
 
-    handlePeers(message: PeersMessage) {
+    async handlePeers(message: PeersMessage) {
         if (message.peers.length === 0) {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} without payload`)
             return
@@ -244,19 +253,12 @@ export default class Peer {
             return
         }
 
-        try {
-            objectManager.validate(message.object)
-        } catch (err: any) {
-            console.error(err)
-            this.sendError(err.name, err.message)
-            return
-        }
-
-        objectManager.add(message.object)
+        await objectManager.validate(message.object)
+        await objectManager.add(message.object)
         this.sendIHaveObject(objectid)
     }
 
-    handleError(message: ErrorMessage) {
+    async handleError(message: ErrorMessage) {
         this.log(`${message.error}:${message.description}`)
     }
 }

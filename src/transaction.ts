@@ -25,7 +25,7 @@ class Outpoint {
 
     async validate() {
         const tx = await objectManager.get(this.txid)
-        if (!tx) {
+        if (typeof tx === 'undefined') {
             const error = new Error(`Transaction ${this.txid} does not exist`)
             error.name = 'UNKNOWN_OBJECT'
             throw error
@@ -41,20 +41,20 @@ class Outpoint {
     }
 
     async getOutput() {
-        const tx: TransactionObject | null = await objectManager.get(this.txid)
+        const tx: TransactionObject | undefined = await objectManager.get(this.txid)
         return tx?.outputs[this.index]
     }
 }
 
 class Input {
     outpoint: Outpoint
-    sig: string
+    sig: string | null
 
     static fromObject(input_object: InputObject) {
         return new Input(Outpoint.fromObject(input_object.outpoint), input_object.sig)
     }
 
-    constructor(outpoint: Outpoint, sig: string) {
+    constructor(outpoint: Outpoint, sig: string | null) {
         this.outpoint = outpoint
         this.sig = sig
     }
@@ -66,15 +66,15 @@ class Input {
 
 class Output {
     value: number
-    pubKey: PubKey
+    pubkey: PubKey
 
     static fromObject(output_object: OutputObject) {
         return new Output(output_object.value, output_object.pubkey)
     }
 
-    constructor(value: number, pubKey: string) {
+    constructor(value: number, pubkey: PubKey) {
         this.value = value
-        this.pubKey = pubKey
+        this.pubkey = pubkey
     }
 }
 
@@ -106,24 +106,25 @@ export class Transaction {
             return true
         }
 
-        this.inputs.forEach(input => input.outpoint.validate())
+        for (const input of this.inputs) {
+            await input.outpoint.validate()
+        }
 
         const outputsOfOutpoints = await Promise.all(
             this.inputs.map(async (input) => await input.outpoint.getOutput())
         )
 
-        const signedTransaction = this.objectToSignable()
-        const signedTransactionString = canonicalize(signedTransaction)
+        const signedTransactionString = this.objectToSignable()
         if (signedTransactionString === undefined) {
             console.error('Error in canonicalizing signed transaction')
             return false
         }
 
         for (let i = 0; i < outputsOfOutpoints.length; i++) {
-            const output = outputsOfOutpoints[i];
-            const input = this.inputs[i];
-            if (output && input && !verify(output.pubkey, input.sig, signedTransactionString)) {
-                const error = new Error(`Signature verification failed for input ${input.outpoint.txid}:${input.outpoint.index}`)
+            const output = outputsOfOutpoints[i]
+            const input = this.inputs[i]
+            if (!verify(output?.pubkey!, input?.sig!, signedTransactionString)) {
+                const error = new Error(`Signature verification failed for input ${input?.outpoint.txid}:${input?.outpoint.index}`)
                 error.name = 'INVALID_TX_SIGNATURE'
                 throw error
             }
@@ -149,6 +150,6 @@ export class Transaction {
     }
 
     objectToSignable() {
-        return { inputs: this.inputs.map(input => input.objectToSignable()), outputs: this.outputs }
+        return canonicalize({ inputs: this.inputs.map(input => input.objectToSignable()), outputs: this.outputs, type: 'transaction' })
     }
 }

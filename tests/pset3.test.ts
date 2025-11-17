@@ -1,6 +1,6 @@
 import { PeerManager } from '../src/peermanager'
 import canonicalize from 'canonicalize'
-import { FakeSocket, iterWrittenJSON, waitForWrite } from './helpers/fakesocket'
+import { FakeSocket, waitForWrite } from './helpers/fakesocket'
 import { InMemoryDB } from './helpers/fakedb'
 import type { NetworkObject, Hash } from '../src/types'
 import { _setObjectManagerForTests, ObjectManager } from '../src/object'
@@ -40,7 +40,7 @@ describe('1) block validation', () => {
         waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: '0000000a0bc00000000000000000000000000000000000000000000000000000',
-            created: 5,
+            created: 1671062401,
             nonce: '26',
             txids: [],
             type: 'block',
@@ -77,7 +77,7 @@ describe('1) block validation', () => {
 
         const block = {
             T: TARGET,
-            created: 5,
+            created: 1671062401,
             nonce: '29',
             txids: ["737bda404559848f48a59b4d97160db7edc683f84f5b51380e1cb874e1f327ac"],
             type: 'block',
@@ -125,7 +125,7 @@ describe('1) block validation', () => {
         s.clearWritten()
         const block = {
             T: TARGET,
-            created: 5,
+            created: 1671062401,
             nonce: '29',
             txids: ["1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"],
             type: 'block',
@@ -172,7 +172,7 @@ describe('1) block validation', () => {
 
         const block2 = {
             T: TARGET,
-            created: 31,
+            created: 1671062402,
             nonce: '30',
             txids: [hash(canonicalize(tx1)), hash(canonicalize(tx2))],
             type: 'block',
@@ -202,7 +202,7 @@ describe('1) block validation', () => {
         s.clearWritten()
         const block = {
             T: TARGET,
-            created: 5,
+            created: 1671062405,
             nonce: '29',
             txids: ["1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"],
             type: 'block',
@@ -249,22 +249,19 @@ describe('1) block validation', () => {
 
         const block1 = {
             T: TARGET,
-            created: 31,
+            created: 1671062410,
             nonce: '30',
             txids: [hash(canonicalize(tx1))],
             type: 'block',
             previd: hash(canonicalize(block)),
         }
         s.feedJSON({ type: 'object', object: block1 })
-        setTimeout(() => {
-            iterWrittenJSON(s).forEach(m => console.log(m))
-        }, 1000)
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
 
         const block2 = {
             T: TARGET,
-            created: 31,
+            created: 1671062415,
             nonce: '30',
             txids: [hash(canonicalize(tx2))],
             type: 'block',
@@ -294,7 +291,7 @@ describe('1) block validation', () => {
         s.clearWritten()
         const block = {
             T: TARGET,
-            created: 5,
+            created: 1671062401,
             nonce: '29',
             txids: [hash(canonicalize(coinbase))],
             type: 'block',

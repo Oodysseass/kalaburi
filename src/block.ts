@@ -128,7 +128,6 @@ export class Block {
         }
 
         const oldState: UTXOSet = await objectManager.get(`${this.previd!}:state`)
-        console.log("oldState", oldState)
         const newState = new UTXOSet(oldState.utxos)
         txs.forEach(tx => newState.apply(tx))
 

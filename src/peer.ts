@@ -138,6 +138,7 @@ export default class Peer {
             message = JSON.parse(msg) as Message
         } catch (_) {
             this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
+            this.log('Could not parse message:', msg)
             this.socket.end()
             return
         }
@@ -147,12 +148,14 @@ export default class Peer {
         } catch (err: any) {
             console.error(err)
             this.sendError('INVALID_FORMAT', 'Unknown message type')
+            this.log('Unknown message type:', msg)
             this.socket.end()
             return
         }
 
         if (!this.handshaked && message.type !== 'hello') {
             this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
+            this.log('Received message before handshake:', msg)
             this.socket.end()
             return
         }

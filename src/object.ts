@@ -1,7 +1,9 @@
 import { Level } from 'level'
 import canonicalize from 'canonicalize'
-import { hash } from './utils'
+import { hash, FIND_OBJECT_TIMEOUT } from './utils'
+import { peerManager } from './peermanager'
 import { Transaction } from './transaction'
+import { Block } from './block'
 import type { NetworkObject, Hash } from './types'
 
 const makeLevelDB = (path: string) =>
@@ -9,12 +11,14 @@ const makeLevelDB = (path: string) =>
 
 const fromObject = {
     transaction: Transaction.fromObject,
+    block: Block.fromObject,
 }
 
 export class ObjectManager {
-    constructor(private db: KV<Hash, NetworkObject> = makeLevelDB('./db')) {}
+    constructor(private db: KV<Hash, any> = makeLevelDB('./db')) {}
+    pendingFinds: Map<Hash, { resolve: (obj: any) => void, reject: (err: Error) => void }[]> = new Map()
 
-    id(object: NetworkObject) {
+    id(object: any) {
         return hash(canonicalize(object))
     }
 
@@ -22,9 +26,13 @@ export class ObjectManager {
         return await this.db.has(id)
     }
 
-    async add(object: NetworkObject) {
-        const id = this.id(object)
+    async add(object: any, id: string = this.id(object)) {
         await this.db.put(id, object)
+        const waiters = this.pendingFinds.get(id)
+        if (waiters && waiters.length > 0) {
+            waiters.forEach(w => w.resolve(object))
+            this.pendingFinds.delete(id)
+        }
     }
 
     async get(id: Hash) {
@@ -35,6 +43,68 @@ export class ObjectManager {
         const transformer = fromObject[networkObject.type]
         const object = transformer(networkObject)
         await object.validate()
+    }
+
+    async fromNetwork(networkObject: NetworkObject) {
+        const id = this.id(networkObject)
+        if (await this.exists(id)) {
+            return true
+        }
+        try {
+            await this.validate(networkObject)
+            await this.add(networkObject)
+            return false
+        } catch (err) {
+            const waiters = this.pendingFinds.get(id)
+            if (waiters && waiters.length > 0) {
+                waiters.forEach(w => w.reject(err as Error))
+                this.pendingFinds.delete(id)
+            }
+            throw err
+        }
+    }
+
+    async findObject(objectid: Hash): Promise<NetworkObject> {
+        if (await this.exists(objectid)) {
+            return await this.get(objectid) as NetworkObject
+        }
+
+        peerManager.broadcast({
+            type: 'getobject',
+            objectid,
+        })
+
+        return new Promise<NetworkObject>((resolve, reject) => {
+            let timer: any
+
+            const entry = {
+                resolve: (obj: NetworkObject) => {
+                    clearTimeout(timer)
+                    resolve(obj)
+                },
+                reject: (err: Error) => {
+                    clearTimeout(timer)
+                    reject(err)
+                }
+            }
+
+            const waiters = this.pendingFinds.get(objectid) ?? []
+            waiters.push(entry)
+            this.pendingFinds.set(objectid, waiters)
+
+            timer = setTimeout(() => {
+                const arr = this.pendingFinds.get(objectid)
+                if (arr) {
+                    const idx = arr.indexOf(entry)
+                    if (idx >= 0) arr.splice(idx, 1)
+                    if (arr.length === 0) this.pendingFinds.delete(objectid)
+                }
+
+                const err = new Error(`Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`)
+                err.name = 'UNFINDABLE_OBJECT'
+                reject(err)
+            }, FIND_OBJECT_TIMEOUT)
+        })
     }
 }
 

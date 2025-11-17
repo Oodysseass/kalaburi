@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TARGET } from './utils'
 
 export const HashSchema = z.string()
 
@@ -13,7 +14,7 @@ export const OutpointObjectSchema = z.object({
 
 export const InputObjectSchema = z.object({
     outpoint: OutpointObjectSchema,
-    sig: SigSchema.nullable(),
+    sig: SigSchema
 })
 
 export const OutputObjectSchema = z.object({
@@ -23,13 +24,32 @@ export const OutputObjectSchema = z.object({
 
 export const TransactionObjectSchema = z.object({
     type: z.literal('transaction'),
-    inputs: z.array(InputObjectSchema).optional(),
-    outputs: z.array(OutputObjectSchema).min(1),
-    height: z.number().optional(),
+    inputs: z.array(InputObjectSchema),
+    outputs: z.array(OutputObjectSchema).min(1)
 })
 
-export const NetworkObjectSchema = z.discriminatedUnion('type', [
+export const CoinbaseObjectSchema = z.object({
+    type: z.literal('transaction'),
+    outputs: z.array(OutputObjectSchema).min(1).max(1),
+    height: z.number().nonnegative(),
+})
+
+export const BlockObjectSchema = z.object({
+    T: z.string().refine(t => t === TARGET),
+    created: z.number().nonnegative(),
+    miner: z.string().max(128).optional().nullable(),
+    nonce: z.string().max(64),
+    note: z.string().max(128).optional().nullable(),
+    previd: HashSchema.nullable(),
+    txids: z.array(HashSchema),
+    type: z.literal('block'),
+    studentids: z.array(z.string().max(128)).max(10).optional().nullable(),
+})
+
+export const NetworkObjectSchema = z.union([
     TransactionObjectSchema,
+    CoinbaseObjectSchema,
+    BlockObjectSchema,
 ])
 
 export const HelloMessageSchema = z.object({
@@ -81,6 +101,8 @@ export type OutpointObject = z.infer<typeof OutpointObjectSchema>
 export type InputObject = z.infer<typeof InputObjectSchema>
 export type OutputObject = z.infer<typeof OutputObjectSchema>
 export type TransactionObject = z.infer<typeof TransactionObjectSchema>
+export type CoinbaseObject = z.infer<typeof CoinbaseObjectSchema>
+export type BlockObject = z.infer<typeof BlockObjectSchema>
 export type NetworkObject = z.infer<typeof NetworkObjectSchema>
 export type HelloMessage = z.infer<typeof HelloMessageSchema>
 export type GetPeersMessage = z.infer<typeof GetPeersMessageSchema>

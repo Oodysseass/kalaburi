@@ -1,7 +1,7 @@
 import { Socket } from 'net'
 import canonicalize from 'canonicalize'
 import { VERSION, AGENT, matchesVersion } from './utils'
-import PeerManager from './peermanager'
+import { peerManager } from './peermanager'
 import { objectManager } from './object'
 import { MessageSchema } from './types'
 import type {
@@ -12,11 +12,11 @@ import type {
     GetObjectMessage,
     ObjectMessage,
     ErrorMessage,
+    Hash
 } from './types'
 
 export default class Peer {
     socket: Socket
-    peerManager: PeerManager
     id: string = ''
     buffer: string = ''
     handshaked: boolean = false
@@ -30,9 +30,8 @@ export default class Peer {
         error: async (m) => await this.handleError(m as ErrorMessage),
     }
 
-    constructor(socket: Socket, peerManager: PeerManager) {
+    constructor(socket: Socket) {
         this.socket = socket
-        this.peerManager = peerManager
         this.initializeSocket()
     }
 
@@ -42,7 +41,7 @@ export default class Peer {
         this.socket.on('close', () => {
             if (process.env.NODE_ENV === 'test') return
             this.log('Client disconnected')
-            this.peerManager.removePeer(this)
+            peerManager.removePeer(this)
         })
 
         this.socket.on('error', (error) => {
@@ -61,9 +60,9 @@ export default class Peer {
         this.log('Client connected')
         this.sendHello()
         this.sendGetPeers()
-        this.peerManager.activePeers.add(this)
-        this.peerManager.knownAddresses.add(this.id)
-        this.peerManager.saveState()
+        peerManager.activePeers.add(this)
+        peerManager.knownAddresses.add(this.id)
+        peerManager.saveState()
     }
 
     handleStream(data: string) {
@@ -71,17 +70,65 @@ export default class Peer {
         let messages = this.buffer.split('\n')
 
         while (messages.length > 1) {
-            let message = messages.shift()?.trim() ?? ''
-            this.log(`Received: ${message}`)
+            const message = messages.shift()?.trim() ?? ''
+            if (!message) continue
 
-            this.handleMessage.bind(this)(message)
+            this.handleMessage(message)
         }
 
         this.buffer = messages[0] ?? ''
     }
 
-    log(message: string) {
-        console.log(`[${this.id}] ${message}`)
+    log(message: any, data?: any) {
+        const cyan = '\x1b[36m'
+        const green = '\x1b[32m'
+        const yellow = '\x1b[33m'
+        const reset = '\x1b[0m'
+
+        const coloredId = `${cyan}[${this.id}]${reset}`
+
+        const formatValue = (value: any, indent: string = '  '): string => {
+            if (value === null || typeof value !== 'object') {
+                return `${yellow}${String(value)}${reset}`
+            }
+
+            const entries = Array.isArray(value)
+                ? value.map<[string, any]>((v, i) => [String(i), v])
+                : Object.entries(value)
+
+            const inner = entries.map(
+                ([k, v]) => `${indent}${green}${k}${reset} = ${formatValue(v, indent + '  ')}`
+            ).join('\n')
+
+            return `{\n${inner}\n${indent.slice(2)}}`
+        }
+
+        const formatObject = (obj: any) => {
+            if (!obj || typeof obj !== 'object') return ` ${formatValue(obj)}`
+
+            const lines = Object.entries(obj).map(
+                ([key, value]) =>
+                    `  ${green}${key}${reset} = ${formatValue(value, '    ')}`
+            )
+
+            return `\n${lines.join('\n')}`
+        }
+
+        if (data !== undefined) {
+            const prefix = String(message)
+            if (data && typeof data === 'object') {
+                console.log(`${coloredId} ${prefix} ${formatObject(data)}`)
+            } else {
+                console.log(`${coloredId} ${prefix} ${data}`)
+            }
+            return
+        }
+
+        if (message && typeof message === 'object') {
+            console.log(`${coloredId} ${formatObject(message)}`)
+        } else {
+            console.log(`${coloredId} ${message}`)
+        }
     }
 
     async handleMessage(msg: string) {
@@ -109,6 +156,8 @@ export default class Peer {
             this.socket.end()
             return
         }
+
+        this.log('Received', message)
 
         await this.handlers[message.type](message)
             .then(() => true)
@@ -138,7 +187,7 @@ export default class Peer {
     }
 
     async sendPeers() {
-        const peers = Array.from(this.peerManager.knownAddresses)
+        const peers = Array.from(peerManager.knownAddresses)
 
         const response = {
             type: 'peers',
@@ -148,16 +197,16 @@ export default class Peer {
         this.sendMessage(response)
     }
 
-    async sendIHaveObject(objectid: string) {
+    async sendIHaveObject(objectid: Hash) {
         const iHaveObject = {
             type: 'ihaveobject',
             objectid
         }
 
-        this.peerManager.broadcast(iHaveObject)
+        peerManager.broadcast(iHaveObject)
     }
 
-    async sendGetObject(objectid: string) {
+    async sendGetObject(objectid: Hash) {
         const getObject = {
             type: 'getobject',
             objectid
@@ -166,7 +215,7 @@ export default class Peer {
         this.sendMessage(getObject)
     }
 
-    async sendObject(objectid: string) {
+    async sendObject(objectid: Hash) {
         const object = await objectManager.get(objectid)
         const response = {
             type: 'object',
@@ -216,16 +265,11 @@ export default class Peer {
         }
         // TODO: add peer address validation
 
-        message.peers.forEach(peer => this.peerManager.knownAddresses.add(peer))
-        this.peerManager.saveState()
+        message.peers.forEach(peer => peerManager.knownAddresses.add(peer))
+        peerManager.saveState()
     }
 
     async handleIHaveObject(message: IHaveObjectMessage) {
-        if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
-            this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
-            return
-        }
-
         if (await objectManager.exists(message.objectid)) {
             return
         }
@@ -234,11 +278,6 @@ export default class Peer {
     }
 
     async handleGetObject(message: GetObjectMessage) {
-        if (!/^[a-f0-9]{64}$/.test(message.objectid)) {
-            this.sendError('INVALID_FORMAT', `Received message type ${message.type} with invalid objectid`)
-            return
-        }
-
         if (await objectManager.exists(message.objectid)) {
             await this.sendObject(message.objectid)
             return
@@ -248,14 +287,10 @@ export default class Peer {
     }
 
     async handleObject(message: ObjectMessage) {
-        const objectid = objectManager.id(message.object)
-        if (await objectManager.exists(objectid)) {
-            return
+        const existed = await objectManager.fromNetwork(message.object)
+        if (!existed) {
+            this.sendIHaveObject(objectManager.id(message.object))
         }
-
-        await objectManager.validate(message.object)
-        await objectManager.add(message.object)
-        this.sendIHaveObject(objectid)
     }
 
     async handleError(message: ErrorMessage) {

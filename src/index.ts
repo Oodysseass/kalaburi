@@ -1,8 +1,7 @@
 import { createServer } from 'net'
-import PeerManager from './peermanager'
+import { peerManager } from './peermanager'
 
 const PORT = process.env.PORT || 18018
-const peerManager = new PeerManager()
 
 const server = createServer((socket) => {
     peerManager.addPeer(socket)

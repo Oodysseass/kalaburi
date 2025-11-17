@@ -2,7 +2,7 @@ import { Socket, connect } from 'net'
 import Peer from './peer'
 import { loadPeers, savePeers } from './persistence'
 
-export default class PeerManager {
+export class PeerManager {
     activePeers: Set<Peer> = new Set()
     knownAddresses: Set<string> = new Set()
 
@@ -11,7 +11,7 @@ export default class PeerManager {
     }
 
     addPeer(socket: Socket) {
-        const p = new Peer(socket, this)
+        const p = new Peer(socket)
         p.onConnect()
     }
 
@@ -27,7 +27,7 @@ export default class PeerManager {
             const address = identifier.slice(0, lastColonIndex)
             const port = identifier.slice(lastColonIndex + 1)
             const socket = connect(parseInt(port), address)
-            new Peer(socket, this)
+            new Peer(socket)
         })
         this.knownAddresses = new Set(identifiers)
     }
@@ -40,3 +40,5 @@ export default class PeerManager {
         this.activePeers.forEach(p => p.sendMessage(message))
     }
 }
+
+export const peerManager = new PeerManager()

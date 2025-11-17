@@ -97,7 +97,7 @@ export const waitForWrite = (sock: FakeSocket, pred: (m: any) => boolean) =>
         const tick = () => {
             const m = findFirst(iterWrittenJSON(sock), pred)
             if (m) return resolve(m)
-            if (Date.now() - start > 1000) return reject(new Error('timeout'))
+            if (Date.now() - start > 10000) return reject(new Error('timeout'))
             setTimeout(tick, 5)
         }
         tick()

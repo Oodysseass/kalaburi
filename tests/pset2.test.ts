@@ -1,4 +1,4 @@
-import PeerManager from '../src/peermanager'
+import { PeerManager } from '../src/peermanager'
 import { FakeSocket, iterWrittenJSON, findFirst, waitForWrite } from './helpers/fakesocket'
 import { InMemoryDB } from './helpers/fakedb'
 import { hash } from '../src/utils'
@@ -252,5 +252,30 @@ describe('4) transaction gossip', () => {
        const receivedObject = await waitForWrite(s2, msg => msg.type === 'object')
        expect(receivedObject).toBeDefined()
        expect(receivedObject.object).toEqual(tx)
+
+       const tx2 = {
+           inputs: [{
+               outpoint: {
+                   index: 0,
+                   txid: "b303d841891f91af118a319f99f5984def51091166ac73c062c98f86ea7371ee"
+               },
+               sig: "060bf7cbe141fecfebf6dafbd6ebbcff25f82e729a7770f4f3b1f81a7ec8a0ce4b287597e609b822111bbe1a83d682ef14f018f8a9143cef25ecc9a8b0c1c405"
+           }],
+           outputs: [{
+               pubkey: "958f8add086cc348e229a3b6590c71b7d7754e42134a127a50648bf07969d9a0",
+               value: 10
+           }],
+           type: "transaction"
+       }
+
+       s2.clearWritten()
+       s1.feedJSON({ type: 'object', object: tx2 })
+       const gossip2 = await waitForWrite(s2, msg => msg.type === 'ihaveobject')
+       expect(gossip2).toBeDefined()
+       expect(gossip2.objectid).toBe(hash(canonicalize(tx2)))
+       s2.feedJSON({ type: 'getobject', objectid: gossip2.objectid })
+       const receivedObject2 = await waitForWrite(s2, msg => msg.type === 'object')
+       expect(receivedObject2).toBeDefined()
+       expect(receivedObject2.object).toEqual(tx2)
    })
 })

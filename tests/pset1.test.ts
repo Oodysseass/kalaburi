@@ -1,4 +1,4 @@
-import PeerManager from '../src/peermanager'
+import { PeerManager } from '../src/peermanager'
 import { FakeSocket, iterWrittenJSON, findFirst, findIndex, waitForWrite } from './helpers/fakesocket'
 
 let pm: any

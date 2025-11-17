@@ -3,7 +3,7 @@ import { hash, BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
-import type { TransactionObject } from './types'
+import type { TransactionObject, BlockObject, Hash } from './types'
 import type { Output } from './transaction'
 
 export class Block {
@@ -16,22 +16,26 @@ export class Block {
     note: string | null
     previd: string | null
     studentids: string[] | null
+    height: number | undefined
+    state: UTXOSet | undefined
+    id: Hash
 
-    static fromObject(block_object: any) {
+    static fromNetwork(block: BlockObject) {
         return new Block(
-            block_object.T,
-            block_object.created,
-            block_object.nonce,
-            block_object.txids,
-            block_object.type,
-            block_object.previd ?? null,
-            block_object.miner ?? null,
-            block_object.note ?? null,
-            block_object.studentids ?? null
+            block.T,
+            block.created,
+            block.nonce,
+            block.txids,
+            block.type,
+            block.previd ?? null,
+            block.miner ?? null,
+            block.note ?? null,
+            block.studentids ?? null,
+            objectManager.id(block)
         )
     }
 
-    toObject() {
+    toNetwork() {
         return {
             T: this.T,
             created: this.created,
@@ -54,7 +58,8 @@ export class Block {
         previd: string | null,
         miner: string | null,
         note: string | null,
-        studentids: string[] | null
+        studentids: string[] | null,
+        id: Hash
     ) {
         this.T = T
         this.created = created
@@ -65,33 +70,49 @@ export class Block {
         this.note = note
         this.previd = previd
         this.studentids = studentids
+        this.id = id
     }
 
     async validate() {
         if (this.previd === null) {
-            if (objectManager.id(this.toObject()) === GENESIS_BLOCK_ID) {
-                const genesisState = new UTXOSet(new Map<string, Output>())
-                await objectManager.add(genesisState, `${GENESIS_BLOCK_ID}:state`)
-                return true
+            if (this.id !== GENESIS_BLOCK_ID) {
+                const error = new Error(`Block ${this.toNetwork()} has null previd but it isn't genesis.`)
+                error.name = 'INVALID_GENESIS'
+                throw error
             }
-            const error = new Error(`Block ${this.toObject()} has null previd but it isn't genesis.`)
-            error.name = 'INVALID_GENESIS'
-            throw error
+            this.height = 0
+            this.state = new UTXOSet(new Map<string, Output>())
+            return true
         }
 
-        await objectManager.findObject(this.previd)
-
-        if (BigInt('0x' + hash(canonicalize(this.toObject()))) >= BigInt('0x' + this.T)) {
+        if (BigInt('0x' + this.id) >= BigInt('0x' + this.T)) {
             const error = new Error('Block hash is not less than target')
             error.name = 'INVALID_BLOCK_POW'
             throw error
         }
 
+        const parent = await objectManager.findObject(this.previd) as Block
+        if (this.created <= parent.created) {
+            const error = new Error(`Block creation time ${this.created} is not greater than parent block's creation time ${parent.created}.`)
+            error.name = 'INVALID_BLOCK_TIMESTAMP'
+            throw error
+        }
+        if (typeof parent.state === 'undefined') {
+            const error = new Error('Parent block state is undefined')
+            error.name = 'INTERNAL_ERROR'
+            throw error
+        }
+        if (typeof parent.height === 'undefined') {
+            const error = new Error('Parent block height is undefined')
+            error.name = 'INTERNAL_ERROR'
+            throw error
+        }
+        this.height = parent.height + 1
+
         const txs: Transaction[] = []
         for (const txid of this.txids) {
-            const txObject = await objectManager.findObject(txid)
+            const tx = await objectManager.findObject(txid) as Transaction
 
-            const tx = Transaction.fromObject(txObject)
             await tx.validate()
             txs.push(tx)
         }
@@ -107,9 +128,7 @@ export class Block {
 
             const spendCoinbase = nonCoinbase.some(tx =>
                 tx.inputs.some(input =>
-                    input.outpoint.txid === objectManager.id(
-                        coinbase[0]?.toObject() as TransactionObject
-                    )
+                    input.outpoint.txid === coinbase[0]?.id
                 )
             )
             if (spendCoinbase) {
@@ -119,7 +138,7 @@ export class Block {
             }
 
             const fees = await this.calculateFees(nonCoinbase)
-            const coinbaseValue = coinbase[0]!.outputs[0]!.value
+            const coinbaseValue = coinbase[0]?.outputs.reduce((acc, output) => acc + output.value, 0) ?? 0
             if (coinbaseValue !== BLOCK_REWARD + fees) {
                 const error = new Error('Coinbase value is not equal to block reward plus fees')
                 error.name = 'INVALID_BLOCK_COINBASE'
@@ -127,12 +146,9 @@ export class Block {
             }
         }
 
-        const oldState: UTXOSet = await objectManager.get(`${this.previd!}:state`)
-        const newState = new UTXOSet(oldState.utxos)
+        const newState = new UTXOSet(parent.state.utxos)
         txs.forEach(tx => newState.apply(tx))
-
-        const blockId = objectManager.id(this.toObject())
-        await objectManager.add(newState, `${blockId}:state`)
+        this.state = newState
 
         return true
     }

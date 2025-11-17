@@ -3,13 +3,13 @@ import { FakeSocket, iterWrittenJSON, findFirst, waitForWrite } from './helpers/
 import { InMemoryDB } from './helpers/fakedb'
 import { hash } from '../src/utils'
 import canonicalize from 'canonicalize'
-import type { NetworkObject, Hash } from '../src/types'
+import type { Hash } from '../src/types'
 import { _setObjectManagerForTests, ObjectManager } from '../src/object'
 
 let pm: any
 beforeEach(() => {
     pm = new PeerManager()
-    const db = new InMemoryDB<Hash, NetworkObject>()
+    const db = new InMemoryDB<Hash, any>()
     const om = new ObjectManager(db)
     _setObjectManagerForTests(om)
     jest.spyOn(console, 'error').mockImplementation(() => { })
@@ -33,24 +33,20 @@ describe('1) object exchange', () => {
 
         s.feedJSON({ type: 'hello', version: '0.10.0', agent: 'grader' })
         s.feedJSON({ type: 'ihaveobject', objectid: hash(canonicalize(object)) })
-        const getobject = await waitForWrite(s, m => m?.type === 'getobject')
-        expect(getobject).toBeDefined()
+        await waitForWrite(s, m => m?.type === 'getobject')
 
         s.feedJSON({ type: 'object', object })
-        await waitForWrite(s, m => m?.type === 'ihaveobject')
+        const ihaveobject = await waitForWrite(s, m => m?.type === 'ihaveobject')
+        expect(ihaveobject).toBeDefined()
 
-        const msgsAfterIngest = iterWrittenJSON(s)
-        const ih = findFirst(msgsAfterIngest, m => m?.type === 'ihaveobject' && typeof m.objectid === 'string')
-        expect(ih).toBeDefined()
-        const oid = ih!.objectid
-
-        s.feedJSON({ type: 'getobject', objectid: oid })
+        s.clearWritten()
+        s.feedJSON({ type: 'getobject', objectid: ihaveobject.objectid })
 
         const objectMsg = await waitForWrite(s, m => m?.type === 'object' && m.object)
         expect(objectMsg).toBeDefined()
 
         const roundTripId = hash(canonicalize(objectMsg.object))
-        expect(roundTripId).toBe(oid)
+        expect(roundTripId).toBe(ihaveobject.objectid)
 
         expect(objectMsg.object).toMatchObject({
             type: expect.any(String),

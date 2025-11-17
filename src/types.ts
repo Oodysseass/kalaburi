@@ -22,7 +22,7 @@ export const OutputObjectSchema = z.object({
     value: z.number().nonnegative(),
 })
 
-export const TransactionObjectSchema = z.object({
+export const NonCoinbaseObjectSchema = z.object({
     type: z.literal('transaction'),
     inputs: z.array(InputObjectSchema),
     outputs: z.array(OutputObjectSchema).min(1)
@@ -30,11 +30,17 @@ export const TransactionObjectSchema = z.object({
 
 export const CoinbaseObjectSchema = z.object({
     type: z.literal('transaction'),
-    outputs: z.array(OutputObjectSchema).min(1).max(1),
+    outputs: z.array(OutputObjectSchema).min(1),
     height: z.number().nonnegative(),
 })
 
+export const TransactionObjectSchema = z.union([
+    NonCoinbaseObjectSchema,
+    CoinbaseObjectSchema,
+])
+
 export const BlockObjectSchema = z.object({
+    type: z.literal('block'),
     T: z.string().refine(t => t === TARGET),
     created: z.number().nonnegative(),
     miner: z.string().max(128).optional().nullable(),
@@ -42,13 +48,11 @@ export const BlockObjectSchema = z.object({
     note: z.string().max(128).optional().nullable(),
     previd: HashSchema.nullable(),
     txids: z.array(HashSchema),
-    type: z.literal('block'),
     studentids: z.array(z.string().max(128)).max(10).optional().nullable(),
 })
 
 export const NetworkObjectSchema = z.union([
     TransactionObjectSchema,
-    CoinbaseObjectSchema,
     BlockObjectSchema,
 ])
 
@@ -100,8 +104,9 @@ export type PubKey = z.infer<typeof PubKeySchema>
 export type OutpointObject = z.infer<typeof OutpointObjectSchema>
 export type InputObject = z.infer<typeof InputObjectSchema>
 export type OutputObject = z.infer<typeof OutputObjectSchema>
-export type TransactionObject = z.infer<typeof TransactionObjectSchema>
+export type NonCoinbaseObject = z.infer<typeof NonCoinbaseObjectSchema>
 export type CoinbaseObject = z.infer<typeof CoinbaseObjectSchema>
+export type TransactionObject = z.infer<typeof TransactionObjectSchema>
 export type BlockObject = z.infer<typeof BlockObjectSchema>
 export type NetworkObject = z.infer<typeof NetworkObjectSchema>
 export type HelloMessage = z.infer<typeof HelloMessageSchema>

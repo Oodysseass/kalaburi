@@ -20,7 +20,7 @@ export default class UTXOSet {
             this.utxos.delete(outpointString)
         }
 
-        const prefix = objectManager.id(tx.toObject())
+        const prefix = tx.id
         tx.outputs.forEach((output, idx) => {
             this.utxos.set(`${prefix}:${idx}`, output)
         })

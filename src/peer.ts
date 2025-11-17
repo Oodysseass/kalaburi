@@ -219,7 +219,7 @@ export default class Peer {
     }
 
     async sendObject(objectid: Hash) {
-        const object = await objectManager.get(objectid)
+        const object = await objectManager.get(objectid).then(obj => obj?.toNetwork())
         const response = {
             type: 'object',
             object

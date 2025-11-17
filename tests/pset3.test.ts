@@ -54,7 +54,6 @@ describe('1) block validation', () => {
 
     it('rejects invalid pow', async () => {
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
-        waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: TARGET,
             created: 5,

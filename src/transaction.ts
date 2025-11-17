@@ -1,8 +1,9 @@
 import canonicalize from 'canonicalize'
 import { objectManager } from './object'
 import { verify } from './utils'
-import type { Hash } from './types'
 import type {
+    Hash,
+    TransactionObject,
     OutpointObject,
     InputObject,
     OutputObject,
@@ -13,11 +14,11 @@ class Outpoint {
     txid: Hash
     index: number
 
-    static fromObject(outpoint_object: OutpointObject) {
+    static fromNetwork(outpoint_object: OutpointObject) {
         return new Outpoint(outpoint_object.txid, outpoint_object.index)
     }
 
-    toObject() {
+    toNetwork() {
         return {
             txid: this.txid,
             index: this.index
@@ -30,13 +31,12 @@ class Outpoint {
     }
 
     async validate() {
-        const txObject = await objectManager.get(this.txid)
-        if (typeof txObject === 'undefined') {
+        const tx = await objectManager.get(this.txid) as Transaction
+        if (typeof tx === 'undefined') {
             const error = new Error(`Transaction ${this.txid} does not exist`)
             error.name = 'UNKNOWN_OBJECT'
             throw error
         }
-        const tx = Transaction.fromObject(txObject)
 
         if (tx.outputs.length <= this.index) {
             const error = new Error(`Output index ${this.index} for transaction ${this.txid} does not exist`)
@@ -48,8 +48,8 @@ class Outpoint {
     }
 
     async getOutput() {
-        const tx = Transaction.fromObject(await objectManager.get(this.txid))
-        return tx?.outputs[this.index]
+        const tx = await objectManager.get(this.txid) as Transaction
+        return tx.outputs[this.index]
     }
 
     toString() {
@@ -61,13 +61,13 @@ class Input {
     outpoint: Outpoint
     sig: string | null
 
-    static fromObject(input_object: InputObject) {
-        return new Input(Outpoint.fromObject(input_object.outpoint), input_object.sig)
+    static fromNetwork(input_object: InputObject) {
+        return new Input(Outpoint.fromNetwork(input_object.outpoint), input_object.sig)
     }
 
-    toObject() {
+    toNetwork() {
         return {
-            outpoint: this.outpoint.toObject(),
+            outpoint: this.outpoint.toNetwork(),
             sig: this.sig
         }
     }
@@ -78,7 +78,10 @@ class Input {
     }
 
     toSignable() {
-        return { outpoint: this.outpoint, sig: null }
+        return {
+            outpoint: this.outpoint,
+            sig: null
+        }
     }
 }
 
@@ -86,11 +89,11 @@ export class Output {
     value: number
     pubkey: PubKey
 
-    static fromObject(output_object: OutputObject) {
+    static fromNetwork(output_object: OutputObject) {
         return new Output(output_object.value, output_object.pubkey)
     }
 
-    toObject() {
+    toNetwork() {
         return {
             value: this.value,
             pubkey: this.pubkey
@@ -108,28 +111,34 @@ export class Transaction {
     outputs: Output[]
     height: number | null
     type: string = 'transaction'
+    id: Hash
 
-    static fromObject(transaction_object: any) {
+    static fromNetwork(tx: TransactionObject) {
+        const inputs = 'inputs' in tx ?  tx.inputs.map(Input.fromNetwork) : []
+        const height = 'height' in tx ? tx.height : null
+    
         return new Transaction(
-            transaction_object.inputs?.map(Input.fromObject) ?? [],
-            transaction_object.outputs.map(Output.fromObject),
-            transaction_object.height ?? null
+            inputs,
+            tx.outputs.map(Output.fromNetwork),
+            height,
+            objectManager.id(tx)
         )
     }
 
-    toObject() {
+    toNetwork() {
         return {
-            outputs: this.outputs.map(output => output.toObject()),
+            outputs: this.outputs.map(output => output.toNetwork()),
             type: this.type,
-            ...(this.inputs?.length > 0 && { inputs: this.inputs.map(input => input.toObject()) }),
+            ...(this.inputs.length > 0 && { inputs: this.inputs.map(input => input.toNetwork()) }),
             ...(this.height !== null && { height: this.height })
         }
     }
 
-    constructor(inputs: Input[], outputs: Output[], height: number | null) {
+    constructor(inputs: Input[], outputs: Output[], height: number | null, id: Hash) {
         this.inputs = inputs
         this.outputs = outputs
         this.height = height
+        this.id = id
     }
 
     isCoinbase() {

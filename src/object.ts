@@ -9,9 +9,9 @@ import type { NetworkObject, Hash } from './types'
 const makeLevelDB = (path: string) =>
     new Level<Hash, NetworkObject>(path, { valueEncoding: 'json' })
 
-const fromObject = {
-    transaction: Transaction.fromObject,
-    block: Block.fromObject,
+const fromNetwork = {
+    transaction: Transaction.fromNetwork,
+    block: Block.fromNetwork,
 }
 
 export class ObjectManager {
@@ -40,9 +40,10 @@ export class ObjectManager {
     }
 
     async validate(networkObject: NetworkObject) {
-        const transformer = fromObject[networkObject.type]
-        const object = transformer(networkObject)
+        const transformer = fromNetwork[networkObject.type]
+        const object = transformer(networkObject as any)
         await object.validate()
+        return object
     }
 
     async fromNetwork(networkObject: NetworkObject) {
@@ -51,8 +52,8 @@ export class ObjectManager {
             return true
         }
         try {
-            await this.validate(networkObject)
-            await this.add(networkObject)
+            const object = await this.validate(networkObject)
+            await this.add(object, object.id)
             return false
         } catch (err) {
             const waiters = this.pendingFinds.get(id)

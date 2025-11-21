@@ -2,13 +2,15 @@ import { blake2s } from '@noble/hashes/blake2'
 import { utf8ToBytes } from '@noble/hashes/utils'
 import forge from 'node-forge'
 import canonicalize from 'canonicalize'
+import net from 'net'
+import type { BlockObject } from './types'
 
 export const VERSION = '0.10.0'
 export const AGENT = 'kalaburi'
 export const FIND_OBJECT_TIMEOUT = 2000
 export let TARGET = "00000000abc00000000000000000000000000000000000000000000000000000"
 export const BLOCK_REWARD = 50 * 10 ** 12
-export const GENESIS_BLOCK = {
+export const GENESIS_BLOCK: BlockObject = {
     T: TARGET,
     created: 1671062400,
     miner: "Marabu",
@@ -36,6 +38,43 @@ export const matchesVersion = (version: string, pattern = "0.10.x") => {
   
     return vMajor === pMajor && vMinor === pMinor
 }
+
+export const validatePeerAddress = (address: string) => {
+    const lastColon = address.lastIndexOf(':')
+    if (lastColon === -1) {
+        const error = new Error(`Invalid peer address (missing port): ${address}`)
+        error.name = 'INVALID_FORMAT'
+        throw error
+    }
+    const host = address.slice(0, lastColon)
+    const portStr = address.slice(lastColon + 1)
+
+    const port = Number(portStr);
+    if (
+        !/^\d+$/.test(portStr) ||
+        port < 1 || port > 65535 ||
+        !Number.isInteger(port)
+    ) {
+        const error = new Error(`Invalid port in peer address: ${address}`)
+        error.name = 'INVALID_FORMAT'
+        throw error
+    }
+
+    const isHostname = (h: string): boolean => {
+        if (h === 'localhost') return true
+        if (h.length === 0 || h.length > 253) return false
+        const labels = h.split('.')
+        if (labels.length < 2) return false
+        const labelRe = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/
+        return labels.every(l => l.length > 0 && l.length <= 63 && labelRe.test(l))
+    };
+
+    if (!net.isIPv4(host) && !net.isIPv6(host) && !isHostname(host)) {
+        const error = new Error(`Invalid peer address: ${address}`)
+        error.name = 'INVALID_FORMAT'
+        throw error
+    }
+};
 
 export const verify = (publicKey: string, signature: string, message: string) => {
     try {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TARGET } from './utils'
+import { matchesVersion, TARGET } from './utils'
 
 export const HashSchema = z.string()
 
@@ -58,7 +58,7 @@ export const NetworkObjectSchema = z.union([
 
 export const HelloMessageSchema = z.object({
     type: z.literal('hello'),
-    version: z.string(),
+    version: z.string().refine(v => matchesVersion(v)),
     agent: z.string()
 })
 
@@ -86,6 +86,15 @@ export const ObjectMessageSchema = z.object({
     object: NetworkObjectSchema
 })
 
+export const GetChainTipMessageSchema = z.object({
+    type: z.literal('getchaintip')
+})
+
+export const ChainTipMessageSchema = z.object({
+    type: z.literal('chaintip'),
+    blockid: HashSchema
+})
+
 export const ErrorMessageSchema = z.object({
     type: z.literal('error'),
     error: z.string(),
@@ -95,7 +104,7 @@ export const ErrorMessageSchema = z.object({
 export const MessageSchema = z.discriminatedUnion('type', [
     HelloMessageSchema, GetPeersMessageSchema, PeersMessageSchema,
     IHaveObjectMessageSchema, GetObjectMessageSchema, ObjectMessageSchema,
-    ErrorMessageSchema
+    GetChainTipMessageSchema, ChainTipMessageSchema, ErrorMessageSchema
 ])
 
 export type Hash = z.infer<typeof HashSchema>
@@ -115,5 +124,7 @@ export type PeersMessage = z.infer<typeof PeersMessageSchema>
 export type IHaveObjectMessage = z.infer<typeof IHaveObjectMessageSchema>
 export type GetObjectMessage = z.infer<typeof GetObjectMessageSchema>
 export type ObjectMessage = z.infer<typeof ObjectMessageSchema>
+export type GetChainTipMessage = z.infer<typeof GetChainTipMessageSchema>
+export type ChainTipMessage = z.infer<typeof ChainTipMessageSchema>
 export type ErrorMessage = z.infer<typeof ErrorMessageSchema>
 export type Message = z.infer<typeof MessageSchema>

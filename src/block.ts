@@ -1,9 +1,9 @@
-import canonicalize from 'canonicalize'
-import { hash, BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
+import {  BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
-import type { TransactionObject, BlockObject, Hash } from './types'
+import { chainManager } from './chain'
+import type { BlockObject, Hash } from './types'
 import type { Output } from './transaction'
 
 export class Block {
@@ -16,7 +16,7 @@ export class Block {
     note: string | null
     previd: string | null
     studentids: string[] | null
-    height: number | undefined
+    height: number = -1
     state: UTXOSet | undefined
     id: Hash
 
@@ -82,6 +82,7 @@ export class Block {
             }
             this.height = 0
             this.state = new UTXOSet(new Map<string, Output>())
+            await chainManager.updateLongestChain(this)
             return true
         }
 
@@ -97,13 +98,18 @@ export class Block {
             error.name = 'INVALID_BLOCK_TIMESTAMP'
             throw error
         }
+        if (this.created * 1000 > Date.now()) {
+            const error = new Error('Block creation time is in the future')
+            error.name = 'INVALID_BLOCK_TIMESTAMP'
+            throw error
+        }
         if (typeof parent.state === 'undefined') {
             const error = new Error('Parent block state is undefined')
             error.name = 'INTERNAL_ERROR'
             throw error
         }
-        if (typeof parent.height === 'undefined') {
-            const error = new Error('Parent block height is undefined')
+        if (parent.height === -1) {
+            const error = new Error('Parent block height is not set')
             error.name = 'INTERNAL_ERROR'
             throw error
         }
@@ -122,6 +128,12 @@ export class Block {
         if (coinbase.length > 0) {
             if (coinbase.length > 1) {
                 const error = new Error('Block has more than one coinbase')
+                error.name = 'INVALID_BLOCK_COINBASE'
+                throw error
+            }
+
+            if (coinbase[0]?.height !== this.height) {
+                const error = new Error('Coinbase height is not equal to block height')
                 error.name = 'INVALID_BLOCK_COINBASE'
                 throw error
             }
@@ -149,6 +161,7 @@ export class Block {
         const newState = new UTXOSet(parent.state.utxos)
         txs.forEach(tx => newState.apply(tx))
         this.state = newState
+        await chainManager.updateLongestChain(this)
 
         return true
     }

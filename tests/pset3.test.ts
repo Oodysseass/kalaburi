@@ -1,6 +1,6 @@
 import { PeerManager } from '../src/peermanager'
 import canonicalize from 'canonicalize'
-import { FakeSocket, waitForWrite } from './helpers/fakesocket'
+import { FakeSocket, iterWrittenJSON, waitForWrite } from './helpers/fakesocket'
 import { InMemoryDB } from './helpers/fakedb'
 import type { NetworkObject, Hash } from '../src/types'
 import { _setObjectManagerForTests, ObjectManager } from '../src/object'
@@ -37,7 +37,7 @@ const handshake = (s: FakeSocket = new FakeSocket('A')): void => {
 describe('1) block validation', () => {
     it('reject incorrect target', async () => {
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
-        waitForWrite(s, m => m?.type === 'ihaveobject')
+        await waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: '0000000a0bc00000000000000000000000000000000000000000000000000000',
             created: 1671062401,
@@ -53,10 +53,12 @@ describe('1) block validation', () => {
     })
 
     it('rejects invalid pow', async () => {
+        _setTargetForTests('00000000abc0000000000000000000000000000000000000000000000000000')
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
+        await waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: TARGET,
-            created: 5,
+            created: 1671062402,
             nonce: '23',
             txids: [],
             type: 'block',
@@ -74,11 +76,19 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
         await waitForWrite(s, m => m?.type === 'ihaveobject')
 
+        const tx = {
+            height: 1,
+            outputs: [{
+                pubkey: "958f8add086cc348e229a3b6590c71b7d7754e42134a127a50648bf07969d9a0",
+                value: BLOCK_REWARD
+            }],
+            type: "transaction"
+        }
         const block = {
             T: TARGET,
             created: 1671062401,
             nonce: '29',
-            txids: ["737bda404559848f48a59b4d97160db7edc683f84f5b51380e1cb874e1f327ac"],
+            txids: [hash(canonicalize(tx))],
             type: 'block',
             previd: GENESIS_BLOCK_ID,
         }
@@ -88,14 +98,7 @@ describe('1) block validation', () => {
         expect(error?.error).toBe('UNFINDABLE_OBJECT')
 
         s.clearWritten()
-        const tx = {
-            height: 0,
-            outputs: [{
-                pubkey: "958f8add086cc348e229a3b6590c71b7d7754e42134a127a50648bf07969d9a0",
-                value: BLOCK_REWARD
-            }],
-            type: "transaction"
-        }
+
         s.feedJSON({ type: 'object', object: tx })
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
@@ -112,9 +115,9 @@ describe('1) block validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
         const coinbase = {
-            height: 0,
+            height: 1,
             outputs: [{
-                pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
+                pubkey: "5069D943C81EF35D07C26C10D05D6CD18815C5C7D16F30642704C4DA24AA4375",
                 value: BLOCK_REWARD
             }],
             type: "transaction"
@@ -126,7 +129,7 @@ describe('1) block validation', () => {
             T: TARGET,
             created: 1671062401,
             nonce: '29',
-            txids: ["1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"],
+            txids: [hash(canonicalize(coinbase))],
             type: 'block',
             previd: GENESIS_BLOCK_ID,
         }
@@ -138,9 +141,9 @@ describe('1) block validation', () => {
             inputs: [{
                 outpoint: {
                     index: 0,
-                    txid: "1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"
+                    txid: hash(canonicalize(coinbase))
                 },
-                sig: "D57F8E987D103EBA05BD0C7EAD0B7E9FAE5B8C6ECB78A13BCA7F0419CB0AE27ADBFA2BD902DF0D44A676B5BC892C47FD79968A18E8FF231B0AD2D07531D87207" 
+                sig: "57D26AD7D4921B671B6D1F6655F8577C034893C3AFD70286CD1E6C195A90920EE5D15FC93FC5ECCC4C5B9A108F038623E4A305695535DFE557EA0877CC62D406" 
             }],
             outputs: [{
                 pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
@@ -152,9 +155,9 @@ describe('1) block validation', () => {
             inputs: [{
                 outpoint: {
                     index: 0,
-                    txid: "1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"
+                    txid: hash(canonicalize(coinbase))
                 },
-                sig: "BA792DEB247DD5FE72C82DC4F270A507CD50D2419837B8AD60443E6E130938359FF8804341F267F726B1BC03C748D6AD1589E30C99D1046709DDE151172EAB08"
+                sig: "43D8980D80FB791902680E5D55B8568B8C9E6720F26E8C6891BD09261FCEF6240208E0316217ED0F88EE7AEC52F166927F3972E1EFF529E8BF24D969E3666C03"
             }],
             outputs: [{
                 pubkey: "pubkey2",
@@ -162,6 +165,7 @@ describe('1) block validation', () => {
             }],
             type: "transaction"
         }
+
         s.feedJSON({ type: 'object', object: tx1 })
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
@@ -189,9 +193,9 @@ describe('1) block validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
         const coinbase = {
-            height: 0,
+            height: 1,
             outputs: [{
-                pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
+                pubkey: "5069D943C81EF35D07C26C10D05D6CD18815C5C7D16F30642704C4DA24AA4375",
                 value: BLOCK_REWARD
             }],
             type: "transaction"
@@ -203,7 +207,7 @@ describe('1) block validation', () => {
             T: TARGET,
             created: 1671062405,
             nonce: '29',
-            txids: ["1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"],
+            txids: [hash(canonicalize(coinbase))],
             type: 'block',
             previd: GENESIS_BLOCK_ID,
         }
@@ -215,9 +219,9 @@ describe('1) block validation', () => {
             inputs: [{
                 outpoint: {
                     index: 0,
-                    txid: "1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"
+                    txid: hash(canonicalize(coinbase))
                 },
-                sig: "D57F8E987D103EBA05BD0C7EAD0B7E9FAE5B8C6ECB78A13BCA7F0419CB0AE27ADBFA2BD902DF0D44A676B5BC892C47FD79968A18E8FF231B0AD2D07531D87207" 
+                sig: "57D26AD7D4921B671B6D1F6655F8577C034893C3AFD70286CD1E6C195A90920EE5D15FC93FC5ECCC4C5B9A108F038623E4A305695535DFE557EA0877CC62D406" 
             }],
             outputs: [{
                 pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
@@ -232,9 +236,9 @@ describe('1) block validation', () => {
             inputs: [{
                 outpoint: {
                     index: 0,
-                    txid: "1e1a81ba90f66bf58b00f27b1664094d76d5ef132d39078ba8928f5259a3a6d9"
+                    txid: hash(canonicalize(coinbase))
                 },
-                sig: "BA792DEB247DD5FE72C82DC4F270A507CD50D2419837B8AD60443E6E130938359FF8804341F267F726B1BC03C748D6AD1589E30C99D1046709DDE151172EAB08"
+                sig: "43D8980D80FB791902680E5D55B8568B8C9E6720F26E8C6891BD09261FCEF6240208E0316217ED0F88EE7AEC52F166927F3972E1EFF529E8BF24D969E3666C03"
             }],
             outputs: [{
                 pubkey: "pubkey2",
@@ -303,7 +307,6 @@ describe('1) block validation', () => {
         s.clearWritten()
     })
 })
-
 
 describe('2) gossiping of blocks', () => {
     it('gossips valid block', async () => {

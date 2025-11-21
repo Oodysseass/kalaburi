@@ -1,16 +1,17 @@
 import { Socket } from 'net'
 import canonicalize from 'canonicalize'
-import { VERSION, AGENT, matchesVersion } from './utils'
+import { VERSION, AGENT, validatePeerAddress } from './utils'
 import { peerManager } from './peermanager'
 import { objectManager } from './object'
+import { chainManager } from './chain'
 import { MessageSchema } from './types'
 import type {
     Message,
-    HelloMessage,
     PeersMessage,
     IHaveObjectMessage,
     GetObjectMessage,
     ObjectMessage,
+    ChainTipMessage,
     ErrorMessage,
     Hash
 } from './types'
@@ -21,12 +22,14 @@ export default class Peer {
     buffer: string = ''
     handshaked: boolean = false
     handlers: Record<Message['type'], (message: Message) => Promise<void>> = {
-        hello: async (m) => await this.handleHello(m as HelloMessage),
+        hello: async () => await this.handleHello(),
         getpeers: async () => await this.handleGetPeers(),
         peers: async (m) => await this.handlePeers(m as PeersMessage),
         ihaveobject: async (m) => await this.handleIHaveObject(m as IHaveObjectMessage),
         getobject: async (m) => await this.handleGetObject(m as GetObjectMessage),
         object: async (m) => await this.handleObject(m as ObjectMessage),
+        getchaintip: async () => await this.handleGetChainTip(),
+        chaintip: async (m) => await this.handleChainTip(m as ChainTipMessage),
         error: async (m) => await this.handleError(m as ErrorMessage),
     }
 
@@ -47,6 +50,7 @@ export default class Peer {
         this.socket.on('error', (error) => {
             if (process.env.NODE_ENV === 'test') return
             console.error(`Client error: ${error}`)
+            peerManager.removePeer(this)
             this.socket.end()
         })
 
@@ -60,6 +64,7 @@ export default class Peer {
         this.log('Client connected')
         this.sendHello()
         this.sendGetPeers()
+        this.sendGetChainTip()
         peerManager.activePeers.add(this)
         peerManager.knownAddresses.add(this.id)
         peerManager.saveState()
@@ -79,58 +84,6 @@ export default class Peer {
         this.buffer = messages[0] ?? ''
     }
 
-    log(message: any, data?: any) {
-        const cyan = '\x1b[36m'
-        const green = '\x1b[32m'
-        const yellow = '\x1b[33m'
-        const reset = '\x1b[0m'
-
-        const coloredId = `${cyan}[${this.id}]${reset}`
-
-        const formatValue = (value: any, indent: string = '  '): string => {
-            if (value === null || typeof value !== 'object') {
-                return `${yellow}${String(value)}${reset}`
-            }
-
-            const entries = Array.isArray(value)
-                ? value.map<[string, any]>((v, i) => [String(i), v])
-                : Object.entries(value)
-
-            const inner = entries.map(
-                ([k, v]) => `${indent}${green}${k}${reset} = ${formatValue(v, indent + '  ')}`
-            ).join('\n')
-
-            return `{\n${inner}\n${indent.slice(2)}}`
-        }
-
-        const formatObject = (obj: any) => {
-            if (!obj || typeof obj !== 'object') return ` ${formatValue(obj)}`
-
-            const lines = Object.entries(obj).map(
-                ([key, value]) =>
-                    `  ${green}${key}${reset} = ${formatValue(value, '    ')}`
-            )
-
-            return `\n${lines.join('\n')}`
-        }
-
-        if (data !== undefined) {
-            const prefix = String(message)
-            if (data && typeof data === 'object') {
-                console.log(`${coloredId} ${prefix} ${formatObject(data)}`)
-            } else {
-                console.log(`${coloredId} ${prefix} ${data}`)
-            }
-            return
-        }
-
-        if (message && typeof message === 'object') {
-            console.log(`${coloredId} ${formatObject(message)}`)
-        } else {
-            console.log(`${coloredId} ${message}`)
-        }
-    }
-
     async handleMessage(msg: string) {
         let message: Message
 
@@ -139,6 +92,7 @@ export default class Peer {
         } catch (_) {
             this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
             this.log('Could not parse message:', msg)
+            peerManager.removePeer(this)
             this.socket.end()
             return
         }
@@ -149,6 +103,7 @@ export default class Peer {
             console.error(err)
             this.sendError('INVALID_FORMAT', 'Unknown message type')
             this.log('Unknown message type:', msg)
+            peerManager.removePeer(this)
             this.socket.end()
             return
         }
@@ -156,6 +111,7 @@ export default class Peer {
         if (!this.handshaked && message.type !== 'hello') {
             this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
             this.log('Received message before handshake:', msg)
+            peerManager.removePeer(this)
             this.socket.end()
             return
         }
@@ -167,7 +123,6 @@ export default class Peer {
             .catch((err: any) => {
                 console.error(err)
                 this.sendError(err.name, err.message)
-                return false
             })
     }
 
@@ -228,6 +183,24 @@ export default class Peer {
         this.sendMessage(response)
     }
 
+    async sendGetChainTip() {
+        const getChainTip = {
+            type: 'getchaintip',
+        }
+
+        this.sendMessage(getChainTip)
+    }
+
+    async sendChainTip() {
+        const blockid = chainManager.longestChain[chainManager.longestChain.length - 1]!.id
+        const chainTip = {
+            type: 'chaintip',
+            blockid
+        }
+
+        this.sendMessage(chainTip)
+    }
+
     async sendError(name: string, message: string) {
         const error = {
             type: 'error',
@@ -238,22 +211,12 @@ export default class Peer {
         this.sendMessage(error)
     }
 
-    sendMessage(msg: any) {
+    async sendMessage(msg: any) {
         const message = canonicalize(msg) + '\n'
         this.socket.write(message)
     }
 
-    async handleHello(message: HelloMessage) {
-        if (!matchesVersion(message.version)) {
-            this.sendError('INVALID_FORMAT', `Received hello with invalid version "${message.version}"`)
-            this.socket.end()
-            return
-        }
-
-        if (this.handshaked) {
-            return
-        }
-
+    async handleHello() {
         this.handshaked = true
     }
 
@@ -266,8 +229,8 @@ export default class Peer {
             this.sendError('INVALID_FORMAT', `Received message type ${message.type} without payload`)
             return
         }
-        // TODO: add peer address validation
 
+        message.peers.forEach(peer => validatePeerAddress(peer))
         message.peers.forEach(peer => peerManager.knownAddresses.add(peer))
         peerManager.saveState()
     }
@@ -298,5 +261,68 @@ export default class Peer {
 
     async handleError(message: ErrorMessage) {
         this.log(`${message.error}:${message.description}`)
+    }
+
+    async handleGetChainTip() {
+        this.sendChainTip()
+    }
+
+    async handleChainTip(message: ChainTipMessage) {
+        const exists = await objectManager.exists(message.blockid)
+        if (!exists) {
+            this.sendGetObject(message.blockid)
+        }
+    }
+
+    log(message: any, data?: any) {
+        const cyan = '\x1b[36m'
+        const green = '\x1b[32m'
+        const yellow = '\x1b[33m'
+        const reset = '\x1b[0m'
+
+        const coloredId = `${cyan}[${this.id}]${reset}`
+
+        const formatValue = (value: any, indent: string = '  '): string => {
+            if (value === null || typeof value !== 'object') {
+                return `${yellow}${String(value)}${reset}`
+            }
+
+            const entries = Array.isArray(value)
+                ? value.map<[string, any]>((v, i) => [String(i), v])
+                : Object.entries(value)
+
+            const inner = entries.map(
+                ([k, v]) => `${indent}${green}${k}${reset} = ${formatValue(v, indent + '  ')}`
+            ).join('\n')
+
+            return `{\n${inner}\n${indent.slice(2)}}`
+        }
+
+        const formatObject = (obj: any) => {
+            if (!obj || typeof obj !== 'object') return ` ${formatValue(obj)}`
+
+            const lines = Object.entries(obj).map(
+                ([key, value]) =>
+                    `  ${green}${key}${reset} = ${formatValue(value, '    ')}`
+            )
+
+            return `\n${lines.join('\n')}`
+        }
+
+        if (data !== undefined) {
+            const prefix = String(message)
+            if (data && typeof data === 'object') {
+                console.log(`${coloredId} ${prefix} ${formatObject(data)}`)
+            } else {
+                console.log(`${coloredId} ${prefix} ${data}`)
+            }
+            return
+        }
+
+        if (message && typeof message === 'object') {
+            console.log(`${coloredId} ${formatObject(message)}`)
+        } else {
+            console.log(`${coloredId} ${message}`)
+        }
     }
 }

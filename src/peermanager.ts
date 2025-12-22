@@ -6,7 +6,7 @@ export class PeerManager {
     activePeers: Set<Peer> = new Set()
     knownAddresses: Set<string> = new Set()
 
-    constructor() {
+    async init() {
         this.loadState()
     }
 

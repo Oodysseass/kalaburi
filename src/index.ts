@@ -1,8 +1,13 @@
 import { createServer } from 'net'
 import { peerManager } from './peermanager'
+import { chainManager } from './chain'
+import { mempoolManager } from './mempool'
 
 const PORT = process.env.PORT || 18018
 
+await peerManager.init()
+await chainManager.init()
+await mempoolManager.init()
 const server = createServer((socket) => {
     peerManager.addPeer(socket)
 })

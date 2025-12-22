@@ -24,7 +24,18 @@ export const OutputObjectSchema = z.object({
 
 export const NonCoinbaseObjectSchema = z.object({
     type: z.literal('transaction'),
-    inputs: z.array(InputObjectSchema),
+    inputs: z.array(InputObjectSchema).min(1).refine(
+        (inputs) => {
+            const seen = new Set()
+            for (const input of inputs) {
+                const key = `${input.outpoint.txid}:${input.outpoint.index}`
+                if (seen.has(key)) return false
+                seen.add(key)
+            }
+            return true
+        },
+        { message: "Inputs must not contain duplicate outpoints" }
+    ),
     outputs: z.array(OutputObjectSchema).min(1)
 })
 
@@ -41,14 +52,14 @@ export const TransactionObjectSchema = z.union([
 
 export const BlockObjectSchema = z.object({
     type: z.literal('block'),
+    previd: HashSchema.nullable(),
     T: z.string().refine(t => t === TARGET),
     created: z.number().nonnegative(),
-    miner: z.string().max(128).optional().nullable(),
     nonce: z.string().max(64),
-    note: z.string().max(128).optional().nullable(),
-    previd: HashSchema.nullable(),
     txids: z.array(HashSchema),
-    studentids: z.array(z.string().max(128)).max(10).optional().nullable(),
+    miner: z.string().max(128).regex(/^[\x20-\x7E]*$/).optional(),
+    note: z.string().max(128).regex(/^[\x20-\x7E]*$/).optional(),
+    studentids: z.array(z.string().max(128).regex(/^[\x20-\x7E]*$/)).max(10).optional()
 })
 
 export const NetworkObjectSchema = z.union([
@@ -95,6 +106,14 @@ export const ChainTipMessageSchema = z.object({
     blockid: HashSchema
 })
 
+export const GetMempoolMessageSchema = z.object({
+    type: z.literal('getmempool')
+})
+
+export const MempoolMessageSchema = z.object({
+    type: z.literal('mempool'),
+    txids: z.array(HashSchema)
+})
 export const ErrorMessageSchema = z.object({
     type: z.literal('error'),
     error: z.string(),
@@ -104,7 +123,8 @@ export const ErrorMessageSchema = z.object({
 export const MessageSchema = z.discriminatedUnion('type', [
     HelloMessageSchema, GetPeersMessageSchema, PeersMessageSchema,
     IHaveObjectMessageSchema, GetObjectMessageSchema, ObjectMessageSchema,
-    GetChainTipMessageSchema, ChainTipMessageSchema, ErrorMessageSchema
+    GetChainTipMessageSchema, ChainTipMessageSchema, GetMempoolMessageSchema,
+    MempoolMessageSchema, ErrorMessageSchema
 ])
 
 export type Hash = z.infer<typeof HashSchema>
@@ -126,5 +146,7 @@ export type GetObjectMessage = z.infer<typeof GetObjectMessageSchema>
 export type ObjectMessage = z.infer<typeof ObjectMessageSchema>
 export type GetChainTipMessage = z.infer<typeof GetChainTipMessageSchema>
 export type ChainTipMessage = z.infer<typeof ChainTipMessageSchema>
+export type GetMempoolMessage = z.infer<typeof GetMempoolMessageSchema>
+export type MempoolMessage = z.infer<typeof MempoolMessageSchema>
 export type ErrorMessage = z.infer<typeof ErrorMessageSchema>
 export type Message = z.infer<typeof MessageSchema>

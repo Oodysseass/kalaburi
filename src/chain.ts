@@ -1,23 +1,60 @@
-import type { Block } from './block'
 import { objectManager } from './object'
+import { mempoolManager } from './mempool'
+import { Block } from './block'
+import { GENESIS_BLOCK } from './utils'
+import UTXOSet from './utxo'
+import type { Output } from './transaction'
 
 class ChainManager {
     longestChain: Block[] = []
 
+    async init() {
+        if (await objectManager.exists('longestChain')) {
+            this.longestChain = await objectManager.get('longestChain') as Block[]
+        } else {
+            const genesisBlock = Block.fromNetwork(GENESIS_BLOCK)
+            genesisBlock.height = 0
+            genesisBlock.state = new UTXOSet(new Map<string, Output>())
+            this.longestChain = [genesisBlock]
+        }
+    }
+
     async updateLongestChain(block: Block) {
         if (this.longestChain.length === 0) {
             this.longestChain = await this.getChain(block)
+            this.longestChain.forEach(async (blk) => {
+                await mempoolManager.applyBlock(blk)
+            })
             return
         }
-        const blockTip = this.longestChain[this.longestChain.length - 1]
+
+        const prevLength = this.longestChain.length
+        const blockTip = this.longestChain[prevLength - 1]
         if (block.height > blockTip!.height) {
-            if (block.previd === blockTip!.id) {
-                this.longestChain.push(block)
+            const newChain = await this.getChain(block)
+
+            if (newChain[prevLength - 1]!.id !== blockTip!.id) {
+                const lastCommonHeight = await this.lastCommonHeight(this.longestChain, newChain)
+                await mempoolManager.handleReorg(this.longestChain, newChain, lastCommonHeight)
             } else {
-                this.longestChain = await this.getChain(block)
+                const newBlocks = newChain.slice(prevLength)
+                newBlocks.forEach(async (blk) => {
+                    await mempoolManager.applyBlock(blk)
+                })
             }
+
+            this.longestChain = newChain
+            objectManager.add(this.longestChain, 'longestChain')
         }
-   }
+    }
+
+    async lastCommonHeight(oldChain: Block[], newChain: Block[]) {
+        let i = oldChain.length - 1
+        while (i > -1 && oldChain[i]!.id !== newChain[i]!.id) {
+            i--
+        }
+        return i
+    }
 
     async getChain(block: Block) {
         let chain: Block[] = [block]

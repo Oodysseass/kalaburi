@@ -4,7 +4,9 @@ import { hash, FIND_OBJECT_TIMEOUT } from './utils'
 import { peerManager } from './peermanager'
 import { Transaction } from './transaction'
 import { Block } from './block'
+import { chainManager } from './chain'
 import type { NetworkObject, Hash } from './types'
+import { mempoolManager } from './mempool'
 
 const makeLevelDB = (path: string) =>
     new Level<Hash, NetworkObject>(path, { valueEncoding: 'json' })
@@ -53,6 +55,12 @@ export class ObjectManager {
         }
         try {
             const object = await this.validate(networkObject)
+            if (object.type === 'transaction') {
+                mempoolManager.addTransaction(object as Transaction)
+            }
+            else if (object.type === 'block') {
+                await chainManager.updateLongestChain(object as Block)
+            }
             await this.add(object, object.id)
             return false
         } catch (err) {

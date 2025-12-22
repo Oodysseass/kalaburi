@@ -4,6 +4,7 @@ import { VERSION, AGENT, validatePeerAddress } from './utils'
 import { peerManager } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
+import { mempoolManager } from './mempool'
 import { MessageSchema } from './types'
 import type {
     Message,
@@ -12,6 +13,7 @@ import type {
     GetObjectMessage,
     ObjectMessage,
     ChainTipMessage,
+    MempoolMessage,
     ErrorMessage,
     Hash
 } from './types'
@@ -30,6 +32,8 @@ export default class Peer {
         object: async (m) => await this.handleObject(m as ObjectMessage),
         getchaintip: async () => await this.handleGetChainTip(),
         chaintip: async (m) => await this.handleChainTip(m as ChainTipMessage),
+        getmempool: async () => await this.handleGetMempool(),
+        mempool: async (m) => await this.handleMempool(m as MempoolMessage),
         error: async (m) => await this.handleError(m as ErrorMessage),
     }
 
@@ -65,6 +69,7 @@ export default class Peer {
         this.sendHello()
         this.sendGetPeers()
         this.sendGetChainTip()
+        this.sendGetMempool()
         peerManager.activePeers.add(this)
         peerManager.knownAddresses.add(this.id)
         peerManager.saveState()
@@ -192,13 +197,31 @@ export default class Peer {
     }
 
     async sendChainTip() {
-        const blockid = chainManager.longestChain[chainManager.longestChain.length - 1]!.id
+        const length = chainManager.longestChain.length
+        const blockid = chainManager.longestChain[length - 1]!.id
         const chainTip = {
             type: 'chaintip',
             blockid
         }
 
         this.sendMessage(chainTip)
+    }
+
+    async sendGetMempool() {
+        const getMempool = {
+            type: 'getmempool',
+        }
+
+        this.sendMessage(getMempool)
+    }
+
+    async sendMempool() {
+        const mempool = {
+            type: 'mempool',
+            txids: mempoolManager.txids
+        }
+
+        this.sendMessage(mempool)
     }
 
     async sendError(name: string, message: string) {
@@ -259,10 +282,6 @@ export default class Peer {
         }
     }
 
-    async handleError(message: ErrorMessage) {
-        this.log(`${message.error}:${message.description}`)
-    }
-
     async handleGetChainTip() {
         this.sendChainTip()
     }
@@ -272,6 +291,23 @@ export default class Peer {
         if (!exists) {
             this.sendGetObject(message.blockid)
         }
+    }
+
+    async handleGetMempool() {
+        this.sendMempool()
+    }
+
+    async handleMempool(message: MempoolMessage) {
+        message.txids.forEach(async txid => {
+            if (await objectManager.exists(txid)) {
+                return
+            }
+            this.sendGetObject(txid)
+        })
+    }
+
+    async handleError(message: ErrorMessage) {
+        this.log(`${message.error}:${message.description}`)
     }
 
     log(message: any, data?: any) {

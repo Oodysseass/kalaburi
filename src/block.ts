@@ -1,8 +1,7 @@
-import {  BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
+import { BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
-import { chainManager } from './chain'
 import type { BlockObject, Hash } from './types'
 import type { Output } from './transaction'
 
@@ -10,7 +9,7 @@ export class Block {
     T: string
     created: number
     nonce: string
-    txids: string[]
+    txids: Hash[]
     type: string
     miner: string | null
     note: string | null
@@ -82,7 +81,6 @@ export class Block {
             }
             this.height = 0
             this.state = new UTXOSet(new Map<string, Output>())
-            await chainManager.updateLongestChain(this)
             return true
         }
 
@@ -161,7 +159,6 @@ export class Block {
         const newState = new UTXOSet(parent.state.utxos)
         txs.forEach(tx => newState.apply(tx))
         this.state = newState
-        await chainManager.updateLongestChain(this)
 
         return true
     }

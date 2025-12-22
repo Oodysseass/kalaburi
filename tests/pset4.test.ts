@@ -1,33 +1,26 @@
 import { PeerManager } from '../src/peermanager'
-import canonicalize from 'canonicalize'
 import { FakeSocket, iterWrittenJSON, waitForWrite } from './helpers/fakesocket'
-import { InMemoryDB } from './helpers/fakedb'
-import type { NetworkObject, Hash } from '../src/types'
-import { _setObjectManagerForTests, ObjectManager } from '../src/object'
 import {
     TARGET,
     GENESIS_BLOCK,
     GENESIS_BLOCK_ID,
-    BLOCK_REWARD,
-    hash,
     _setTargetForTests
 } from '../src/utils'
+import { setupTestEnv, handshake, id } from './helpers/test-utils'
 
 let pm: any
 let s1: FakeSocket
 let s2: FakeSocket
 
-beforeEach(() => {
+beforeEach(async () => {
     pm = new PeerManager()
-    const db = new InMemoryDB<Hash, NetworkObject>()
-    const om = new ObjectManager(db)
-    _setObjectManagerForTests(om)
+    await setupTestEnv()
 
     s1 = new FakeSocket('A')
     s2 = new FakeSocket('B')
 
-    handshake(s1)
-    handshake(s2)
+    handshake(pm, s1)
+    handshake(pm, s2)
 
     jest.spyOn(console, 'error').mockImplementation(() => {})
     s1.clearWritten()
@@ -38,19 +31,13 @@ afterEach(() => {
     jest.clearAllMocks()
 })
 
-const handshake = (s: FakeSocket = new FakeSocket('X')): void => {
-    pm.addPeer(s.asNetSocket())
-    s.feedJSON({ type: 'hello', version: '0.10.0', agent: 'grader' })
-    s.clearWritten()
-}
-
 describe('1) invalid blockchains', () => {
     jest.setTimeout(10000)
 
     it('a) points to an unavailable block -> UNFINDABLE_OBJECT, no ihaveobject on other peer', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 
-        const unavailableParent = hash(canonicalize({ missing: 'parent' }))
+        const unavailableParent = id({ missing: 'parent' })
         const block = {
             T: TARGET,
             created: 1671062401,
@@ -67,49 +54,49 @@ describe('1) invalid blockchains', () => {
         expect(error?.error).toBe('UNFINDABLE_OBJECT')
 
         const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(block)))
+        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block))
         expect(gossiped).toBeUndefined()
     })
 
-    it('b) non-increasing timestamps -> INVALID_BLOCK_TIMESTAMP, no ihaveobject on other peer', async () => {
-        _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+   it('b) non-increasing timestamps -> INVALID_BLOCK_TIMESTAMP, no ihaveobject on other peer', async () => {
+       _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 
-        s1.feedJSON({ type: 'object', object: GENESIS_BLOCK })
-        await waitForWrite(s1, m => m?.type === 'ihaveobject')
-        s1.clearWritten()
-        s2.clearWritten()
+       s1.feedJSON({ type: 'object', object: GENESIS_BLOCK })
+       await waitForWrite(s1, m => m?.type === 'ihaveobject')
+       s1.clearWritten()
+       s2.clearWritten()
 
-        const block1 = {
-            T: TARGET,
-            created: 1671062401,
-            nonce: '23',
-            txids: [],
-            type: 'block',
-            previd: GENESIS_BLOCK_ID,
-        }
-        s1.feedJSON({ type: 'object', object: block1 })
-        await waitForWrite(s1, m => m?.type === 'ihaveobject')
-        s1.clearWritten()
-        s2.clearWritten()
+       const block1 = {
+           T: TARGET,
+           created: 1671062401,
+           nonce: '23',
+           txids: [],
+           type: 'block',
+           previd: GENESIS_BLOCK_ID,
+       }
+       s1.feedJSON({ type: 'object', object: block1 })
+       await waitForWrite(s1, m => m?.type === 'ihaveobject')
+       s1.clearWritten()
+       s2.clearWritten()
 
-        const block2 = {
-            T: TARGET,
-            created: 1671062401,
-            nonce: '24',
-            txids: [],
-            type: 'block',
-            previd: hash(canonicalize(block1)),
-        }
-        s1.feedJSON({ type: 'object', object: block2 })
+       const block2 = {
+           T: TARGET,
+           created: 1671062401,
+           nonce: '24',
+           txids: [],
+           type: 'block',
+           previd: id(block1),
+       }
+       s1.feedJSON({ type: 'object', object: block2 })
 
-        const error = await waitForWrite(s1, m => m?.type === 'error')
-        expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_TIMESTAMP')
+       const error = await waitForWrite(s1, m => m?.type === 'error')
+       expect(error).toBeDefined()
+       expect(error?.error).toBe('INVALID_BLOCK_TIMESTAMP')
 
-        const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(block2)))
-        expect(gossiped).toBeUndefined()
-    })
+       const msgsB = iterWrittenJSON(s2)
+       const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block2))
+       expect(gossiped).toBeUndefined()
+   })
 
     it('c) block in the year 2077 (future) -> INVALID_BLOCK_TIMESTAMP, no ihaveobject on other peer', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
@@ -134,7 +121,7 @@ describe('1) invalid blockchains', () => {
         expect(error?.error).toBe('INVALID_BLOCK_TIMESTAMP')
 
         const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(futureBlock)))
+        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(futureBlock))
         expect(gossiped).toBeUndefined()
     })
 
@@ -160,8 +147,9 @@ describe('1) invalid blockchains', () => {
         expect(error).toBeDefined()
         expect(error?.error).toBe('INVALID_BLOCK_POW')
 
+        await new Promise(resolve => setTimeout(resolve, 1000))
         const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(badPow)))
+        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(badPow))
         expect(gossiped).toBeUndefined()
     })
 
@@ -183,7 +171,7 @@ describe('1) invalid blockchains', () => {
         expect(error?.error).toBe('INVALID_GENESIS')
 
         const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(fakeGenesis)))
+        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(fakeGenesis))
         expect(gossiped).toBeUndefined()
     })
 
@@ -199,7 +187,7 @@ describe('1) invalid blockchains', () => {
             height: 0,
             outputs: [{
                 pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
-                value: BLOCK_REWARD
+                value: 50 * 10 ** 12 // BLOCK_REWARD
             }],
             type: "transaction"
         }
@@ -212,7 +200,7 @@ describe('1) invalid blockchains', () => {
             T: TARGET,
             created: 1671062401,
             nonce: '29',
-            txids: [hash(canonicalize(coinbase))],
+            txids: [id(coinbase)],
             type: 'block',
             previd: GENESIS_BLOCK_ID,
         }
@@ -223,7 +211,7 @@ describe('1) invalid blockchains', () => {
         expect(error?.error).toBe('INVALID_BLOCK_COINBASE')
 
         const msgsB = iterWrittenJSON(s2)
-        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(block)))
+        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block))
         expect(gossiped).toBeUndefined()
     })
 })
@@ -251,7 +239,7 @@ describe('2) chaintip reports the longest valid chain', () => {
             nonce: 'a2',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(blockA1)),
+            previd: id(blockA1),
         }
 
         const blockB1 = {
@@ -279,7 +267,7 @@ describe('2) chaintip reports the longest valid chain', () => {
 
         const chaintip = await waitForWrite(s1, m => m?.type === 'chaintip')
         expect(chaintip).toBeDefined()
-        expect(chaintip.blockid).toBe(hash(canonicalize(blockA2)))
+        expect(chaintip.blockid).toBe(id(blockA2))
     })
 })
 
@@ -306,7 +294,7 @@ describe('3) accepts chain of blocks', () => {
             nonce: '23',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(block1)),
+            previd: id(block1),
         }
 
         const block3 = {
@@ -315,7 +303,7 @@ describe('3) accepts chain of blocks', () => {
             nonce: '23',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(block2)),
+            previd: id(block2),
         }
 
         const block4 = {
@@ -324,7 +312,7 @@ describe('3) accepts chain of blocks', () => {
             nonce: '23',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(block3)),
+            previd: id(block3),
         }
 
         const block5 = {
@@ -333,7 +321,7 @@ describe('3) accepts chain of blocks', () => {
             nonce: '23',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(block4)),
+            previd: id(block4),
         }
 
         const block6 = {
@@ -342,7 +330,7 @@ describe('3) accepts chain of blocks', () => {
             nonce: '23',
             txids: [],
             type: 'block',
-            previd: hash(canonicalize(block5)),
+            previd: id(block5),
         }
 
         s1.feedJSON({ type: 'object', object: block6 })
@@ -372,10 +360,8 @@ describe('3) accepts chain of blocks', () => {
 
         s1.feedJSON({ type: 'object', object: block1 })
 
-        const ihaveobject = await waitForWrite(s1, m => m?.type === 'ihaveobject' && m.objectid === hash(canonicalize(block6)))
+        const ihaveobject = await waitForWrite(s1, m => m?.type === 'ihaveobject' && m.objectid === id(block6))
         expect(ihaveobject).toBeDefined()
-        expect(ihaveobject.objectid).toBe(hash(canonicalize(block6)))
+        expect(ihaveobject.objectid).toBe(id(block6))
     })
 })
-
-

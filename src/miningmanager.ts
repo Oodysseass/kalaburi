@@ -1,7 +1,6 @@
 import { Worker } from 'worker_threads'
 import { objectManager } from './object'
 import { peerManager } from './peermanager'
-import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
 import { Block } from './block'
 import { TARGET, AGENT, BLOCK_REWARD } from './utils'
@@ -12,25 +11,24 @@ class MiningManager {
     workers: Worker[] = []
 
     async init(numWorkers: number) {
-        const tip = chainManager.longestChain.slice(-1)[0]
-        let block = await this.createNextBlock(tip)
         for (let i = 0; i < numWorkers; i++) {
-            const worker = new Worker(new URL("./miningworker.ts", import.meta.url))
+            const worker = new Worker(new URL("./miningworker.js", import.meta.url))
             this.workers.push(worker)
             worker.on("message", (msg) => {
                 if (msg.type === "foundBlock") {
                     this.onMinedBlock(msg.block)
                 }
             })
-            block.nonce = this.randomNonce()
-            worker.postMessage({ type: "newBlock", block })
         }
     }
 
     async onNewBlock(tip: Block) {
         const block = await this.createNextBlock(tip)
         this.workers.forEach(worker => worker.postMessage({ type: "abort" }))
-        this.workers.forEach(worker => worker.postMessage({ type: "newBlock", block }))
+        this.workers.forEach(worker => {
+            block.nonce = this.randomNonce()
+            worker.postMessage({ type: "newBlock", block })
+        })
     }
 
     async onMinedBlock(tip: BlockObject) {

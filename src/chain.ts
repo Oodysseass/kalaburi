@@ -1,5 +1,6 @@
 import { objectManager } from './object'
 import { mempoolManager } from './mempool'
+import { miningManager } from './miningmanager'
 import { Block } from './block'
 import { GENESIS_BLOCK } from './utils'
 import UTXOSet from './utxo'
@@ -19,6 +20,7 @@ class ChainManager {
             await objectManager.add([genesisBlock], 'longestChain')
             await objectManager.add(genesisBlock, genesisBlock.id)
         }
+        miningManager.onNewBlock(this.longestChain.slice(-1)[0])
     }
 
     async updateLongestChain(block: Block) {
@@ -27,6 +29,7 @@ class ChainManager {
             this.longestChain.forEach(async (blk) => {
                 await mempoolManager.applyBlock(blk)
             })
+            miningManager.onNewBlock(block)
             return
         }
 
@@ -47,6 +50,7 @@ class ChainManager {
 
             this.longestChain = newChain
             await objectManager.add(this.longestChain, 'longestChain')
+            miningManager.onNewBlock(this.longestChain.slice(-1)[0])
         }
     }
 

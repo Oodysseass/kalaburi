@@ -15,6 +15,7 @@ import type {
     ChainTipMessage,
     MempoolMessage,
     ErrorMessage,
+    NetworkObject,
     Hash
 } from './types'
 
@@ -178,8 +179,7 @@ export default class Peer {
         this.sendMessage(getObject)
     }
 
-    async sendObject(objectid: Hash) {
-        const object = await objectManager.get(objectid).then(obj => obj?.toNetwork())
+    async sendObject(object: NetworkObject) {
         const response = {
             type: 'object',
             object
@@ -268,8 +268,11 @@ export default class Peer {
 
     async handleGetObject(message: GetObjectMessage) {
         if (await objectManager.exists(message.objectid)) {
-            await this.sendObject(message.objectid)
-            return
+            const object = await objectManager.get(message.objectid)
+            if (typeof object.type === 'undefined') {
+                return
+            }
+            await this.sendObject(object.toNetwork())
         }
 
         this.sendError('UNKNOWN_OBJECT', `Object ${message.objectid} not found`)

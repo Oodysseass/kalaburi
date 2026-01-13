@@ -7,6 +7,7 @@ import {
     _setTargetForTests
 } from '../src/utils'
 import { setupTestEnv, handshake, id } from './helpers/test-utils'
+import { chainManager } from '../src/chain'
 
 let pm: any
 let s1: FakeSocket
@@ -219,6 +220,7 @@ describe('1) invalid blockchains', () => {
 describe('2) chaintip reports the longest valid chain', () => {
     it('returns the tip of the longest chain after multiple valid chains are sent', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+        chainManager.longestChain = []
 
         s1.feedJSON({ type: 'object', object: GENESIS_BLOCK })
         await waitForWrite(s1, m => m?.type === 'ihaveobject')
@@ -274,6 +276,7 @@ describe('2) chaintip reports the longest valid chain', () => {
 describe('3) accepts chain of blocks', () => {
     it('sends tip first and pauses between blocks', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+        chainManager.longestChain = []
 
         s1.feedJSON({ type: 'object', object: GENESIS_BLOCK })
         await waitForWrite(s1, m => m?.type === 'ihaveobject')

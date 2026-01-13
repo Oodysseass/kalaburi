@@ -38,7 +38,14 @@ export class ObjectManager {
     }
 
     async get(id: Hash) {
-        return await this.db.get(id)
+        let object = await this.db.get(id)
+        if (object.type === 'transaction') {
+            object = Transaction.fromJSON(object)
+        }
+        else if (object.type === 'block') {
+            object = Block.fromJSON(object)
+        }
+        return object
     }
 
     async validate(networkObject: NetworkObject) {
@@ -73,9 +80,14 @@ export class ObjectManager {
         }
     }
 
+    async fromMining(block: Block) {
+        await this.add(block, block.id)
+        await chainManager.updateLongestChain(block)
+    }
+
     async findObject(objectid: Hash): Promise<NetworkObject> {
         if (await this.exists(objectid)) {
-            return await this.get(objectid) as NetworkObject
+            return await this.get(objectid)
         }
 
         peerManager.broadcast({

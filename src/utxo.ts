@@ -3,9 +3,15 @@ import { Output, Transaction } from "./transaction"
 export default class UTXOSet {
     utxos: Map<string, Output>
 
-    constructor(utxos: Map<string, Output>) {
-        this.utxos = new Map(utxos)
-    }
+    constructor(
+        utxos: Map<string, Output> | Record<string, Output> = new Map()
+      ) {
+        if (utxos instanceof Map) {
+          this.utxos = new Map(utxos)
+        } else {
+          this.utxos = new Map(Object.entries(utxos))
+        }
+      }
 
     apply(tx: Transaction) {
         tx.inputs.forEach(input => {

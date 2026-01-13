@@ -20,7 +20,7 @@ import {
     buildBlock
 } from './helpers/test-utils'
 
-let pm: any
+let pm: PeerManager
 let s1: FakeSocket
 let s2: FakeSocket
 

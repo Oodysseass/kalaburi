@@ -3,19 +3,21 @@ import { mempoolManager } from './mempool'
 import { Block } from './block'
 import { GENESIS_BLOCK } from './utils'
 import UTXOSet from './utxo'
-import type { Output } from './transaction'
 
 class ChainManager {
     longestChain: Block[] = []
 
     async init() {
         if (await objectManager.exists('longestChain')) {
-            this.longestChain = await objectManager.get('longestChain') as Block[]
+            const blocks = (await objectManager.get('longestChain'))
+            this.longestChain = blocks.map((block: any) => Block.fromJSON(block))
         } else {
             const genesisBlock = Block.fromNetwork(GENESIS_BLOCK)
             genesisBlock.height = 0
-            genesisBlock.state = new UTXOSet(new Map<string, Output>())
+            genesisBlock.state = new UTXOSet()
             this.longestChain = [genesisBlock]
+            await objectManager.add([genesisBlock], 'longestChain')
+            await objectManager.add(genesisBlock, genesisBlock.id)
         }
     }
 
@@ -30,7 +32,7 @@ class ChainManager {
 
         const prevLength = this.longestChain.length
         const blockTip = this.longestChain[prevLength - 1]
-        if (block.height > blockTip!.height) {
+        if (block.height! > blockTip!.height!) {
             const newChain = await this.getChain(block)
 
             if (newChain[prevLength - 1]!.id !== blockTip!.id) {
@@ -44,7 +46,7 @@ class ChainManager {
             }
 
             this.longestChain = newChain
-            objectManager.add(this.longestChain, 'longestChain')
+            await objectManager.add(this.longestChain, 'longestChain')
         }
     }
 
@@ -60,7 +62,7 @@ class ChainManager {
         let chain: Block[] = [block]
         let currentBlock = block
         while (currentBlock.previd !== null) {
-            const parent = await objectManager.get(currentBlock.previd)
+            const parent = await objectManager.get(currentBlock.previd) as Block
             if (typeof parent === 'undefined') {
                 const error = new Error(`Parent block of ${block.id} not found`)
                 error.name = 'INTERNAL_ERROR'

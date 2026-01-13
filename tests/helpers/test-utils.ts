@@ -93,7 +93,6 @@ export async function setupTestEnv() {
     const om = new ObjectManager(db)
     _setObjectManagerForTests(om)
     await mempoolManager.init()
-    await chainManager.init()
     return { db, om }
 }
 

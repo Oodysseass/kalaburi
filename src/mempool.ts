@@ -3,16 +3,16 @@ import { objectManager } from './object'
 import { Transaction } from './transaction'
 import { Block } from './block'
 import type { Hash } from './types'
-import type { Output } from './transaction'
 
 class MempoolManager {
     txids: Hash[] = []
-    currentState: UTXOSet = new UTXOSet(new Map<string, Output>())
+    currentState: UTXOSet = new UTXOSet()
 
     async init() {
         if (await objectManager.exists('longestChain')) {
-            const longestChain = await objectManager.get('longestChain')
-            this.currentState = new UTXOSet(longestChain[longestChain.length - 1]!.state!.utxos)
+            const blocks = await objectManager.get('longestChain')
+            const block = Block.fromJSON(blocks[blocks.length - 1]!)
+            this.currentState = new UTXOSet(block.state!.utxos)
         } 
         this.txids = []
     }

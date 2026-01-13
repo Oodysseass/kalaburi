@@ -31,7 +31,7 @@ class Outpoint {
     }
 
     async validate() {
-        const tx = await objectManager.get(this.txid) as Transaction
+        const tx = (await objectManager.get(this.txid)) as Transaction
         if (typeof tx === 'undefined') {
             const error = new Error(`Transaction ${this.txid} does not exist`)
             error.name = 'UNKNOWN_OBJECT'
@@ -48,7 +48,7 @@ class Outpoint {
     }
 
     async getOutput() {
-        const tx = await objectManager.get(this.txid) as Transaction
+        const tx = (await objectManager.get(this.txid)) as Transaction
         return tx.outputs[this.index]
     }
 
@@ -114,14 +114,24 @@ export class Transaction {
     id: Hash
 
     static fromNetwork(tx: TransactionObject) {
-        const inputs = 'inputs' in tx ?  tx.inputs.map(Input.fromNetwork) : []
+        const id = objectManager.id(tx)
+        const inputs = 'inputs' in tx ? tx.inputs.map(Input.fromNetwork) : []
         const height = 'height' in tx ? tx.height : null
     
         return new Transaction(
             inputs,
             tx.outputs.map(Output.fromNetwork),
             height,
-            objectManager.id(tx)
+            id
+        )
+    }
+
+    static fromJSON(tx: any) {
+        return new Transaction(
+            tx.inputs.map((input: InputObject) => Input.fromNetwork(input)),
+            tx.outputs.map((output: OutputObject) => Output.fromNetwork(output)),
+            tx.height,
+            tx.id
         )
     }
 

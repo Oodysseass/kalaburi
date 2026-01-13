@@ -3,7 +3,6 @@ import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
 import type { BlockObject, Hash } from './types'
-import type { Output } from './transaction'
 
 export class Block {
     T: string
@@ -15,8 +14,8 @@ export class Block {
     note: string | null
     previd: string | null
     studentids: string[] | null
-    height: number = -1
-    state: UTXOSet | undefined
+    height: number | null
+    state: UTXOSet | null
     id: Hash
 
     static fromNetwork(block: BlockObject) {
@@ -30,7 +29,77 @@ export class Block {
             block.miner ?? null,
             block.note ?? null,
             block.studentids ?? null,
+            null,
+            null,
             objectManager.id(block)
+        )
+    }
+
+    static async fromMining(minedBlock: BlockObject) {
+        const block = new Block(
+                    minedBlock.T,
+                    minedBlock.created,
+                    minedBlock.nonce,
+                    minedBlock.txids,
+                    minedBlock.type,
+                    minedBlock.previd ?? null,
+                    minedBlock.miner ?? null,
+                    minedBlock.note ?? null,
+                    minedBlock.studentids ?? null,
+                    null,
+                    null,
+                    objectManager.id(minedBlock)
+                )
+
+        if (minedBlock.previd === null) {
+            const error = new Error('Mined block has no parent')
+            error.name = 'INTERNAL_ERROR'
+            throw error
+        }
+        const parent = await objectManager.get(minedBlock.previd!) as Block
+
+        if (parent.height === null) {
+            const error = new Error('Parent block height is null')
+            error.name = 'INTERNAL_ERROR'
+            throw error
+        }
+        block.height = parent.height + 1
+
+        if (parent.state === null) {
+            const error = new Error('Parent block state is null')
+            error.name = 'INTERNAL_ERROR'
+            throw error
+        }
+        const newState = new UTXOSet(parent.state.utxos)
+
+        for (const txid of minedBlock.txids) {
+            const tx = await objectManager.get(txid) as Transaction
+            if (typeof tx === 'undefined') {
+                const error = new Error('Transaction is undefined')
+                error.name = 'INTERNAL_ERROR'
+                throw error
+            }
+            newState.apply(tx)
+        }
+        block.state = newState
+
+        return block
+    }
+
+    static fromJSON(block: any) {
+        return new Block(
+            block.T,
+            block.created,
+            block.nonce,
+            block.txids,
+            block.type,
+            block.previd,
+            block.miner,
+            block.note,
+            block.studentids,
+            block.height,
+            new UTXOSet(block.state.utxos),
+            block.id
         )
     }
 
@@ -58,6 +127,8 @@ export class Block {
         miner: string | null,
         note: string | null,
         studentids: string[] | null,
+        height: number | null,
+        state: UTXOSet | null,
         id: Hash
     ) {
         this.T = T
@@ -69,6 +140,8 @@ export class Block {
         this.note = note
         this.previd = previd
         this.studentids = studentids
+        this.height = height
+        this.state = state
         this.id = id
     }
 
@@ -80,7 +153,7 @@ export class Block {
                 throw error
             }
             this.height = 0
-            this.state = new UTXOSet(new Map<string, Output>())
+            this.state = new UTXOSet()
             return true
         }
 
@@ -101,13 +174,13 @@ export class Block {
             error.name = 'INVALID_BLOCK_TIMESTAMP'
             throw error
         }
-        if (typeof parent.state === 'undefined') {
-            const error = new Error('Parent block state is undefined')
+        if (parent.state === null) {
+            const error = new Error('Parent block state is null')
             error.name = 'INTERNAL_ERROR'
             throw error
         }
-        if (parent.height === -1) {
-            const error = new Error('Parent block height is not set')
+        if (parent.height === null) {
+            const error = new Error('Parent block height is null')
             error.name = 'INTERNAL_ERROR'
             throw error
         }

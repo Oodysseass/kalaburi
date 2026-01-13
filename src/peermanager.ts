@@ -1,6 +1,7 @@
 import { Socket, connect } from 'net'
 import Peer from './peer'
 import { loadPeers, savePeers } from './persistence'
+import type { Hash } from './types'
 
 export class PeerManager {
     activePeers: Set<Peer> = new Set()
@@ -38,6 +39,14 @@ export class PeerManager {
 
     broadcast(message: any) {
         this.activePeers.forEach(p => p.sendMessage(message))
+    }
+
+    fromMining(id: Hash) {
+        const ihaveobject = {
+            type: 'ihaveobject',
+            objectid: id
+        }
+        this.broadcast(ihaveobject)
     }
 }
 

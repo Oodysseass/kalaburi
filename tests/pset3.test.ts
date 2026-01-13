@@ -103,6 +103,7 @@ describe('1) block validation', () => {
 
     it('rejects double spending transactions', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+        chainManager.longestChain = []
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()

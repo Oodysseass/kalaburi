@@ -1,7 +1,7 @@
 import { Socket } from 'net'
 import canonicalize from 'canonicalize'
 import { VERSION, AGENT, validatePeerAddress } from './utils'
-import { peerManager } from './peermanager'
+import { peerManager, MAX_ACTIVE_PEERS } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
@@ -44,7 +44,13 @@ export default class Peer {
     }
 
     initializeSocket() {
-        this.socket.on('connect', () => this.onConnect.bind(this))
+        this.socket.on('connect', () => {
+            if (peerManager.activePeers.size < MAX_ACTIVE_PEERS) {
+                this.onConnect.bind(this)
+            } else {
+                this.socket.end()
+            }
+        })
 
         this.socket.on('close', () => {
             if (process.env.NODE_ENV === 'test') return

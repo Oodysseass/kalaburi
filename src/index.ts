@@ -7,9 +7,9 @@ import { miningManager } from './miningmanager'
 const PORT = process.env.PORT || 18018
 
 await peerManager.init()
+await miningManager.init(parseInt(process.env.MINERS || '4'))
 await chainManager.init()
 await mempoolManager.init()
-await miningManager.init(parseInt(process.env.MINERS || '4'))
 const server = createServer((socket) => {
     peerManager.addPeer(socket)
 })

@@ -36,7 +36,6 @@ class MiningManager {
         const block = await Block.fromMining(tip)
         await objectManager.fromMining(block)
         peerManager.fromMining(block.id)
-        await this.onNewBlock(Block.fromNetwork(tip))
     }
 
     async createNextBlock(tip: Block) {

@@ -222,8 +222,8 @@ export class Block {
 
             const fees = await this.calculateFees(nonCoinbase)
             const coinbaseValue = coinbase[0]?.outputs.reduce((acc, output) => acc + output.value, 0) ?? 0
-            if (coinbaseValue !== BLOCK_REWARD + fees) {
-                const error = new Error('Coinbase value is not equal to block reward plus fees')
+            if (coinbaseValue > BLOCK_REWARD + fees) {
+                const error = new Error('Coinbase value is greater than block reward plus fees')
                 error.name = 'INVALID_BLOCK_COINBASE'
                 throw error
             }

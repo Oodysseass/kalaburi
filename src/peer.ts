@@ -230,11 +230,11 @@ export default class Peer {
         this.sendMessage(mempool)
     }
 
-    async sendError(name: string, message: string) {
+    async sendError(name: string, description: string) {
         const error = {
             type: 'error',
-            error: name,
-            description: message
+            name,
+            description
         }
 
         this.sendMessage(error)

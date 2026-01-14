@@ -32,7 +32,7 @@ class MiningManager {
     }
 
     async onMinedBlock(tip: BlockObject) {
-        console.log(`Mined block ${tip.previd}`)
+        console.log(`Mined block`, Date.now() / 1000, objectManager.id(tip))
         const block = await Block.fromMining(tip)
         await objectManager.fromMining(block)
         peerManager.fromMining(block.id)

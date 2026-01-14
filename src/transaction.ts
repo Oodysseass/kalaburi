@@ -31,12 +31,12 @@ class Outpoint {
     }
 
     async validate() {
-        const tx = (await objectManager.get(this.txid)) as Transaction
-        if (typeof tx === 'undefined') {
+        if (!(await objectManager.exists(this.txid))) {
             const error = new Error(`Transaction ${this.txid} does not exist`)
             error.name = 'UNKNOWN_OBJECT'
             throw error
         }
+        const tx = (await objectManager.get(this.txid)) as Transaction
 
         if (tx.outputs.length <= this.index) {
             const error = new Error(`Output index ${this.index} for transaction ${this.txid} does not exist`)

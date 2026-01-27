@@ -25,8 +25,9 @@ class MempoolManager {
         try {
             this.currentState.apply(tx)
         } catch (err: any) {
-            throw err
+            return
         }
+
         this.txids.push(tx.id)
     }
 

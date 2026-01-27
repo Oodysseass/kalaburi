@@ -279,6 +279,7 @@ export default class Peer {
                 return
             }
             await this.sendObject(object.toNetwork())
+            return
         }
 
         this.sendError('UNKNOWN_OBJECT', `Object ${message.objectid} not found`)

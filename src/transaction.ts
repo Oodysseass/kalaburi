@@ -1,6 +1,7 @@
 import canonicalize from 'canonicalize'
 import { objectManager } from './object'
 import { verify } from './utils'
+import { ValidationError, ErrorName, ObjectError } from "./error"
 import type {
     Hash,
     TransactionObject,
@@ -32,16 +33,12 @@ class Outpoint {
 
     async validate() {
         if (!(await objectManager.exists(this.txid))) {
-            const error = new Error(`Transaction ${this.txid} does not exist`)
-            error.name = 'UNKNOWN_OBJECT'
-            throw error
+            throw new ObjectError(ErrorName.UNKNOWN_OBJECT, `Transaction ${this.txid} does not exist`)
         }
         const tx = (await objectManager.get(this.txid)) as Transaction
 
         if (tx.outputs.length <= this.index) {
-            const error = new Error(`Output index ${this.index} for transaction ${this.txid} does not exist`)
-            error.name = 'INVALID_TX_OUTPOINT'
-            throw error
+            throw new ValidationError(ErrorName.INVALID_TX_OUTPOINT, `Output index ${this.index} for transaction ${this.txid} does not exist`)
         }
 
         return true
@@ -178,9 +175,7 @@ export class Transaction {
             const output = outputsOfOutpoints[i]
             const input = this.inputs[i]
             if (!verify(output!.pubkey, input!.sig!, signedTransactionString)) {
-                const error = new Error(`Signature verification failed for input ${input?.outpoint.txid}:${input?.outpoint.index}`)
-                error.name = 'INVALID_TX_SIGNATURE'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_TX_SIGNATURE, `Signature verification failed for input ${input?.outpoint.txid}:${input?.outpoint.index}`)
             }
         }
 
@@ -195,9 +190,7 @@ export class Transaction {
         )
 
         if (totalInputValue < totalOutputValue) {
-            const error = new Error(`Transaction does not satisfy conservation law`)
-            error.name = 'INVALID_TX_CONSERVATION'
-            throw error
+            throw new ValidationError(ErrorName.INVALID_TX_CONSERVATION, `Transaction ${this.id} does not satisfy conservation law`)
         }
 
         return true

@@ -84,7 +84,7 @@ describe('7) pre-hello message -> INVALID_HANDSHAKE + disconnect', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_HANDSHAKE/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_HANDSHAKE/i)
         expect(s.closed).toBe(true)
     })
 })
@@ -98,7 +98,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
         expect(s.closed).toBe(true)
     })
 
@@ -110,7 +110,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
         expect(s.closed).toBe(true)
     })
 
@@ -122,7 +122,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
         expect(s.closed).toBe(true)
     })
 
@@ -134,7 +134,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
         expect(s.closed).toBe(true)
     })
 
@@ -146,7 +146,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
         const msgs = iterWrittenJSON(s)
         const err = findFirst(msgs, m => m?.type === 'error')
         expect(err).toBeDefined()
-        expect(String(err.error ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
+        expect(String(err.name ?? err.message ?? '')).toMatch(/INVALID_FORMAT/i)
         expect(s.closed).toBe(true)
     })
 })

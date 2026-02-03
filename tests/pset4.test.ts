@@ -52,7 +52,7 @@ describe('1) invalid blockchains', () => {
 
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('UNFINDABLE_OBJECT')
+        expect(error?.name).toBe('UNFINDABLE_OBJECT')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block))
@@ -92,7 +92,7 @@ describe('1) invalid blockchains', () => {
 
        const error = await waitForWrite(s1, m => m?.type === 'error')
        expect(error).toBeDefined()
-       expect(error?.error).toBe('INVALID_BLOCK_TIMESTAMP')
+       expect(error?.name).toBe('INVALID_BLOCK_TIMESTAMP')
 
        const msgsB = iterWrittenJSON(s2)
        const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block2))
@@ -119,7 +119,7 @@ describe('1) invalid blockchains', () => {
 
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_TIMESTAMP')
+        expect(error?.name).toBe('INVALID_BLOCK_TIMESTAMP')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(futureBlock))
@@ -146,7 +146,7 @@ describe('1) invalid blockchains', () => {
 
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_POW')
+        expect(error?.name).toBe('INVALID_BLOCK_POW')
 
         await new Promise(resolve => setTimeout(resolve, 1000))
         const msgsB = iterWrittenJSON(s2)
@@ -169,7 +169,7 @@ describe('1) invalid blockchains', () => {
 
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_GENESIS')
+        expect(error?.name).toBe('INVALID_GENESIS')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(fakeGenesis))
@@ -209,7 +209,7 @@ describe('1) invalid blockchains', () => {
 
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_COINBASE')
+        expect(error?.name).toBe('INVALID_BLOCK_COINBASE')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block))

@@ -83,7 +83,7 @@ describe('1) invalid objects -> INVALID_FORMAT and no gossip', () => {
         s1.feedJSON({ type: 'object', object: duplicateOutpointTx })
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_FORMAT')
+        expect(error?.name).toBe('INVALID_FORMAT')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(duplicateOutpointTx))
@@ -103,7 +103,7 @@ describe('1) invalid objects -> INVALID_FORMAT and no gossip', () => {
         s1.feedJSON({ type: 'object', object: block })
         const error = await waitForWrite(s1, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_FORMAT')
+        expect(error?.name).toBe('INVALID_FORMAT')
 
         const msgsB = iterWrittenJSON(s2)
         const gossiped = msgsB.find(m => m?.type === 'ihaveobject' && m.objectid === id(block))
@@ -274,7 +274,7 @@ describe('3) mempool behavior', () => {
         }
         s1.feedJSON({ type: 'object', object: spend2 })
         const err = await waitForWrite(s1, m => m?.type === 'error')
-        expect(err?.error).toBe('INVALID_TX_OUTPOINT')
+        expect(err?.name).toBe('INVALID_TX_OUTPOINT')
 
         s1.clearWritten()
         s1.feedJSON({ type: 'getmempool' })

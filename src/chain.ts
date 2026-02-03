@@ -4,6 +4,7 @@ import { miningManager } from './miningmanager'
 import { Block } from './block'
 import { GENESIS_BLOCK } from './utils'
 import UTXOSet from './utxo'
+import { InternalError } from './error'
 
 class ChainManager {
     longestChain: Block[] = []
@@ -68,9 +69,7 @@ class ChainManager {
         while (currentBlock.previd !== null) {
             const parent = await objectManager.get(currentBlock.previd) as Block
             if (typeof parent === 'undefined') {
-                const error = new Error(`Parent block of ${block.id} not found`)
-                error.name = 'INTERNAL_ERROR'
-                throw error
+                throw new InternalError(`Parent block of ${block.id} not found`)
             }
             chain.unshift(parent)
             currentBlock = parent

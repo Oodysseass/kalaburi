@@ -5,6 +5,7 @@ import { peerManager, MAX_ACTIVE_PEERS } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
+import { ObjectError, InternalError, ErrorName } from './error'
 import { MessageSchema } from './types'
 import type {
     Message,
@@ -53,13 +54,11 @@ export default class Peer {
         })
 
         this.socket.on('close', () => {
-            if (process.env.NODE_ENV === 'test') return
             this.log('Client disconnected')
             peerManager.removePeer(this)
         })
 
         this.socket.on('error', (error) => {
-            if (process.env.NODE_ENV === 'test') return
             console.error(`Client error: ${error}`)
             peerManager.removePeer(this)
             this.socket.end()
@@ -134,6 +133,9 @@ export default class Peer {
             .then(() => true)
             .catch((err: any) => {
                 console.error(err)
+                if (err instanceof InternalError) {
+                    return
+                }
                 this.sendError(err.name, err.message)
             })
     }
@@ -282,7 +284,7 @@ export default class Peer {
             return
         }
 
-        this.sendError('UNKNOWN_OBJECT', `Object ${message.objectid} not found`)
+        throw new ObjectError(ErrorName.UNKNOWN_OBJECT, `Object ${message.objectid} not found`)
     }
 
     async handleObject(message: ObjectMessage) {
@@ -317,7 +319,7 @@ export default class Peer {
     }
 
     async handleError(message: ErrorMessage) {
-        this.log(`${message.error}:${message.description}`)
+        this.log(`${message.name}:${message.description}`)
     }
 
     log(message: any, data?: any) {

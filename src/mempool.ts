@@ -2,6 +2,7 @@ import UTXOSet from './utxo'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import { Block } from './block'
+import { ValidationError, ErrorName } from './error'
 import type { Hash } from './types'
 
 class MempoolManager {
@@ -25,7 +26,7 @@ class MempoolManager {
         try {
             this.currentState.apply(tx)
         } catch (err: any) {
-            return
+            throw new ValidationError(ErrorName.INVALID_TX_OUTPOINT, `Transaction ${tx.id} is not valid against current mempool state.`)
         }
 
         this.txids.push(tx.id)

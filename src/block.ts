@@ -1,7 +1,8 @@
-import { BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
+import { ValidationError, InternalError, ErrorName } from "./error"
+import { BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import type { BlockObject, Hash } from './types'
 
 export class Block {
@@ -52,32 +53,24 @@ export class Block {
                 )
 
         if (minedBlock.previd === null) {
-            const error = new Error('Mined block has no parent')
-            error.name = 'INTERNAL_ERROR'
-            throw error
+            throw new InternalError(`Mined block has no parent`)
         }
         const parent = await objectManager.get(minedBlock.previd!) as Block
 
         if (parent.height === null) {
-            const error = new Error('Parent block height is null')
-            error.name = 'INTERNAL_ERROR'
-            throw error
+            throw new InternalError(`Parent block height is null`)
         }
         block.height = parent.height + 1
 
         if (parent.state === null) {
-            const error = new Error('Parent block state is null')
-            error.name = 'INTERNAL_ERROR'
-            throw error
+            throw new InternalError(`Parent block state is null`)
         }
         const newState = new UTXOSet(parent.state.utxos)
 
         for (const txid of minedBlock.txids) {
             const tx = await objectManager.get(txid) as Transaction
             if (typeof tx === 'undefined') {
-                const error = new Error('Transaction is undefined')
-                error.name = 'INTERNAL_ERROR'
-                throw error
+                throw new InternalError(`Mined block has unknown transactions`)
             }
             newState.apply(tx)
         }
@@ -148,9 +141,7 @@ export class Block {
     async validate() {
         if (this.previd === null) {
             if (this.id !== GENESIS_BLOCK_ID) {
-                const error = new Error(`Block ${this.toNetwork()} has null previd but it isn't genesis.`)
-                error.name = 'INVALID_GENESIS'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_GENESIS, `Block ${this.toNetwork()} has null previd but it is not genesis.`)
             }
             this.height = 0
             this.state = new UTXOSet()
@@ -158,31 +149,21 @@ export class Block {
         }
 
         if (BigInt('0x' + this.id) >= BigInt('0x' + this.T)) {
-            const error = new Error('Block hash is not less than target')
-            error.name = 'INVALID_BLOCK_POW'
-            throw error
+            throw new ValidationError(ErrorName.INVALID_BLOCK_POW, `Block ${this.id} is not less than target`)
         }
 
         const parent = await objectManager.findObject(this.previd) as Block
         if (this.created <= parent.created) {
-            const error = new Error(`Block creation time ${this.created} is not greater than parent block's creation time ${parent.created}.`)
-            error.name = 'INVALID_BLOCK_TIMESTAMP'
-            throw error
+            throw new ValidationError(ErrorName.INVALID_BLOCK_TIMESTAMP, `Block creation time ${this.created} is not greater than parent block's creation time ${parent.created}.`)
         }
         if (this.created * 1000 > Date.now()) {
-            const error = new Error('Block creation time is in the future')
-            error.name = 'INVALID_BLOCK_TIMESTAMP'
-            throw error
+            throw new ValidationError(ErrorName.INVALID_BLOCK_TIMESTAMP, `Block creation time is in the future.`)
         }
         if (parent.state === null) {
-            const error = new Error('Parent block state is null')
-            error.name = 'INTERNAL_ERROR'
-            throw error
+            throw new InternalError(`Parent block state is null`)
         }
         if (parent.height === null) {
-            const error = new Error('Parent block height is null')
-            error.name = 'INTERNAL_ERROR'
-            throw error
+            throw new InternalError(`Parent block height is null.`)
         }
         this.height = parent.height + 1
 
@@ -198,34 +179,26 @@ export class Block {
         const nonCoinbase = txs.filter(tx => !tx.isCoinbase())
         if (coinbase.length > 0) {
             if (coinbase.length > 1) {
-                const error = new Error('Block has more than one coinbase')
-                error.name = 'INVALID_BLOCK_COINBASE'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_BLOCK_COINBASE, `Block has more than one coinbase transactions.`)
             }
 
-            if (coinbase[0]?.height !== this.height) {
-                const error = new Error('Coinbase height is not equal to block height')
-                error.name = 'INVALID_BLOCK_COINBASE'
-                throw error
+            if (coinbase[0].height !== this.height) {
+                throw new ValidationError(ErrorName.INVALID_BLOCK_COINBASE, `Coinbase height ${coinbase[0]?.height} is not equal to block height ${this.height}.`)
             }
 
             const spendCoinbase = nonCoinbase.some(tx =>
                 tx.inputs.some(input =>
-                    input.outpoint.txid === coinbase[0]?.id
+                    input.outpoint.txid === coinbase[0].id
                 )
             )
             if (spendCoinbase) {
-                const error = new Error('Coinbase cannot be spend in the same block')
-                error.name = 'INVALID_TX_OUTPOINT'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_TX_OUTPOINT, `Coinbase cannot be spent in the same block.`)
             }
 
             const fees = await this.calculateFees(nonCoinbase)
-            const coinbaseValue = coinbase[0]?.outputs.reduce((acc, output) => acc + output.value, 0) ?? 0
+            const coinbaseValue = coinbase[0].outputs.reduce((acc, output) => acc + output.value, 0)
             if (coinbaseValue > BLOCK_REWARD + fees) {
-                const error = new Error('Coinbase value is greater than block reward plus fees')
-                error.name = 'INVALID_BLOCK_COINBASE'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_BLOCK_COINBASE, `Coinbase value ${coinbaseValue} is greater than block reward ${BLOCK_REWARD} plus fees ${fees}.`)
             }
         }
 

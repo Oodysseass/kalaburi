@@ -1,4 +1,5 @@
 import { Output, Transaction } from "./transaction"
+import { ValidationError, ErrorName } from "./error"
 
 export default class UTXOSet {
     utxos: Map<string, Output>
@@ -21,9 +22,7 @@ export default class UTXOSet {
         tx.inputs.forEach(input => {
             const outpointString = input.outpoint.toString()
             if (!this.utxos.has(outpointString)) {
-                const error = new Error(`Input outpoint ${outpointString} not found in UTXO set`)
-                error.name = 'INVALID_TX_OUTPOINT'
-                throw error
+                throw new ValidationError(ErrorName.INVALID_TX_OUTPOINT, `Input outpoint ${outpointString} not found in the UTXO set`)
             }
         })
 

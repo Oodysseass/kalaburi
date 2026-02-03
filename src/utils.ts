@@ -1,8 +1,9 @@
-import { blake2s } from '@noble/hashes/blake2'
-import { utf8ToBytes } from '@noble/hashes/utils'
+import net from 'net'
 import forge from 'node-forge'
 import canonicalize from 'canonicalize'
-import net from 'net'
+import { blake2s } from '@noble/hashes/blake2'
+import { utf8ToBytes } from '@noble/hashes/utils'
+import { ValidationError, ErrorName } from "./error"
 import type { BlockObject } from './types'
 
 export const VERSION = '0.10.0'
@@ -42,9 +43,7 @@ export const matchesVersion = (version: string, pattern = "0.10.x") => {
 export const validatePeerAddress = (address: string) => {
     const lastColon = address.lastIndexOf(':')
     if (lastColon === -1) {
-        const error = new Error(`Invalid peer address (missing port): ${address}`)
-        error.name = 'INVALID_FORMAT'
-        throw error
+        throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address (missing port): ${address}`)
     }
     const host = address.slice(0, lastColon)
     const portStr = address.slice(lastColon + 1)
@@ -55,9 +54,7 @@ export const validatePeerAddress = (address: string) => {
         port < 1 || port > 65535 ||
         !Number.isInteger(port)
     ) {
-        const error = new Error(`Invalid port in peer address: ${address}`)
-        error.name = 'INVALID_FORMAT'
-        throw error
+        throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid port in peer address: ${address}`)
     }
 
     const isHostname = (h: string): boolean => {
@@ -70,9 +67,7 @@ export const validatePeerAddress = (address: string) => {
     };
 
     if (!net.isIPv4(host) && !net.isIPv6(host) && !isHostname(host)) {
-        const error = new Error(`Invalid peer address: ${address}`)
-        error.name = 'INVALID_FORMAT'
-        throw error
+        throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address: ${address}`)
     }
 };
 

@@ -85,7 +85,7 @@ export async function sendTxAndGetError(
 ): Promise<string | undefined> {
     s.feedJSON({ type: 'object', object: obj })
     const err = await waitForWrite(s, m => m?.type === 'error')
-    return err?.error
+    return err?.name
 }
 
 export async function setupTestEnv() {

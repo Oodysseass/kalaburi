@@ -116,7 +116,7 @@ export const MempoolMessageSchema = z.object({
 })
 export const ErrorMessageSchema = z.object({
     type: z.literal('error'),
-    error: z.string(),
+    name: z.string(),
     description: z.string()
 })
 

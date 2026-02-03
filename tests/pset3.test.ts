@@ -41,7 +41,7 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: block })
         const error = await waitForWrite(s, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_FORMAT')
+        expect(error?.name).toBe('INVALID_FORMAT')
     })
 
     it('rejects invalid pow', async () => {
@@ -59,7 +59,7 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: block })
         const error = await waitForWrite(s, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_POW')
+        expect(error?.name).toBe('INVALID_BLOCK_POW')
     })
 
     it('rejects block with unfindable transaction', async () => {
@@ -87,7 +87,7 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: block })
         const error = await waitForWrite(s, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('UNFINDABLE_OBJECT')
+        expect(error?.name).toBe('UNFINDABLE_OBJECT')
 
         s.clearWritten()
 
@@ -165,7 +165,7 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: tx2 })
         const error = await waitForWrite(s, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_TX_OUTPOINT')
+        expect(error?.name).toBe('INVALID_TX_OUTPOINT')
     })
 
     it('rejects invalid coinbase', async () => {
@@ -195,7 +195,7 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: block })
         const error = await waitForWrite(s, m => m?.type === 'error')
         expect(error).toBeDefined()
-        expect(error?.error).toBe('INVALID_BLOCK_COINBASE')
+        expect(error?.name).toBe('INVALID_BLOCK_COINBASE')
         s.clearWritten()
     })
 })

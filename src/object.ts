@@ -5,8 +5,9 @@ import { peerManager } from './peermanager'
 import { Transaction } from './transaction'
 import { Block } from './block'
 import { chainManager } from './chain'
-import type { NetworkObject, Hash } from './types'
 import { mempoolManager } from './mempool'
+import { ObjectError, ErrorName } from './error'
+import type { NetworkObject, Hash } from './types'
 
 const makeLevelDB = (path: string) =>
     new Level<Hash, NetworkObject>(path, { valueEncoding: 'json' })
@@ -63,7 +64,13 @@ export class ObjectManager {
         try {
             const object = await this.validate(networkObject)
             if (object.type === 'transaction') {
-                mempoolManager.addTransaction(object as Transaction)
+                try {
+                    mempoolManager.addTransaction(object as Transaction)
+                } catch (err: any) {
+                    if (!this.pendingFinds.has(id)) {
+                        throw err
+                    }
+                }
             }
             else if (object.type === 'block') {
                 await chainManager.updateLongestChain(object as Block)
@@ -121,9 +128,7 @@ export class ObjectManager {
                     if (arr.length === 0) this.pendingFinds.delete(objectid)
                 }
 
-                const err = new Error(`Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`)
-                err.name = 'UNFINDABLE_OBJECT'
-                reject(err)
+                reject(new ObjectError(ErrorName.UNFINDABLE_OBJECT, `Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`))
             }, FIND_OBJECT_TIMEOUT)
         })
     }

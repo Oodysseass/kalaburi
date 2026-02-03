@@ -33,7 +33,13 @@ class MiningManager {
 
     async onMinedBlock(tip: BlockObject) {
         console.log(`Mined block`, Date.now() / 1000, objectManager.id(tip))
-        const block = await Block.fromMining(tip)
+        let block
+        try {
+            block = await Block.fromMining(tip)
+        } catch (err: any) {
+            console.error(err)
+            return
+        }
         await objectManager.fromMining(block)
         peerManager.fromMining(block.id)
     }

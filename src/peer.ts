@@ -5,7 +5,7 @@ import { peerManager, MAX_ACTIVE_PEERS } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
-import { ObjectError, InternalError, ErrorName } from './error'
+import { ObjectError, InternalError, DependencyError, ErrorName } from './error'
 import { MessageSchema } from './types'
 import type {
     Message,
@@ -288,9 +288,25 @@ export default class Peer {
     }
 
     async handleObject(message: ObjectMessage) {
-        const existed = await objectManager.fromNetwork(message.object)
-        if (!existed) {
-            this.sendIHaveObject(objectManager.id(message.object))
+        const id = objectManager.id(message.object)
+        const isWaitedFor = objectManager.pendingFinds.has(id)
+        try {
+            const existed = await objectManager.fromNetwork(message.object)
+            if (!existed) {
+                this.sendIHaveObject(id)
+            }
+        } catch (err: any) {
+            if (isWaitedFor) {
+                return
+            }
+            if (err instanceof DependencyError) {
+                console.error(err.cause)
+                if (message.object.type === 'block') {
+                    this.sendError(ErrorName.UNFINDABLE_OBJECT, `Block ${id} could not be validated`)
+                }
+                throw err.cause
+            }
+            throw err
         }
     }
 

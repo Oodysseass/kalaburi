@@ -35,6 +35,16 @@ export class ObjectError extends ProtocolError {
     }
 }
 
+export class DependencyError extends Error {
+    cause: Error
+
+    constructor(cause: Error) {
+        super(cause.message)
+        this.cause = cause
+        this.name = 'DEPENDENCY_ERROR'
+    }
+}
+
 export class InternalError extends Error {
     type: string
 

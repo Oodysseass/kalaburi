@@ -1,7 +1,7 @@
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import UTXOSet from './utxo'
-import { ValidationError, InternalError, ErrorName } from "./error"
+import { ValidationError, InternalError, ErrorName, DependencyError } from "./error"
 import { BLOCK_REWARD, GENESIS_BLOCK_ID } from './utils'
 import type { BlockObject, Hash } from './types'
 
@@ -141,7 +141,7 @@ export class Block {
     async validate() {
         if (this.previd === null) {
             if (this.id !== GENESIS_BLOCK_ID) {
-                throw new ValidationError(ErrorName.INVALID_GENESIS, `Block ${this.toNetwork()} has null previd but it is not genesis.`)
+                throw new ValidationError(ErrorName.INVALID_GENESIS, `Block ${this.id} has null previd but it is not genesis.`)
             }
             this.height = 0
             this.state = new UTXOSet()
@@ -152,7 +152,13 @@ export class Block {
             throw new ValidationError(ErrorName.INVALID_BLOCK_POW, `Block ${this.id} is not less than target`)
         }
 
-        const parent = await objectManager.findObject(this.previd) as Block
+        let parent: Block
+        try {
+            parent = await objectManager.findObject(this.previd) as Block
+        } catch (err: any) {
+            throw err instanceof DependencyError ? err : new DependencyError(err)
+        }
+
         if (this.created <= parent.created) {
             throw new ValidationError(ErrorName.INVALID_BLOCK_TIMESTAMP, `Block creation time ${this.created} is not greater than parent block's creation time ${parent.created}.`)
         }
@@ -167,13 +173,15 @@ export class Block {
         }
         this.height = parent.height + 1
 
-        const txs: Transaction[] = []
-        for (const txid of this.txids) {
-            const tx = await objectManager.findObject(txid) as Transaction
-
-            await tx.validate()
-            txs.push(tx)
+        let txs: Transaction[]
+        try {
+            txs = await Promise.all([
+                ...this.txids.map(txid => objectManager.findObject(txid))
+            ]) as Transaction[]
+        } catch (err: any) {
+            throw err instanceof DependencyError ? err : new DependencyError(err)
         }
+
 
         const coinbase = txs.filter(tx => tx.isCoinbase())
         const nonCoinbase = txs.filter(tx => !tx.isCoinbase())

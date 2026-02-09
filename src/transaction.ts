@@ -2,6 +2,7 @@ import canonicalize from 'canonicalize'
 import { objectManager } from './object'
 import { verify } from './utils'
 import { ValidationError, ErrorName, ObjectError } from "./error"
+import { Logger } from './logger'
 import type {
     Hash,
     TransactionObject,
@@ -10,6 +11,8 @@ import type {
     OutputObject,
     PubKey
 } from './types'
+
+const log = new Logger('tx')
 
 class Outpoint {
     txid: Hash
@@ -167,7 +170,7 @@ export class Transaction {
 
         const signedTransactionString = this.toSignable()
         if (signedTransactionString === undefined) {
-            console.error('Error in canonicalizing signed transaction')
+            log.error('Error canonicalizing signed transaction', this.id)
             return false
         }
 

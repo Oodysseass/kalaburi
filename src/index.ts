@@ -3,8 +3,10 @@ import { peerManager } from './peermanager'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
 import { miningManager } from './miningmanager'
+import { Logger } from './logger'
 
 const PORT = process.env.PORT || 18018
+const log = new Logger('server')
 
 await peerManager.init()
 await miningManager.init(parseInt(process.env.MINERS || '4'))
@@ -15,5 +17,5 @@ const server = createServer((socket) => {
 })
 
 server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`)
+    log.info(`Listening on port ${PORT}`)
 })

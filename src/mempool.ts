@@ -2,8 +2,10 @@ import UTXOSet from './utxo'
 import { objectManager } from './object'
 import { Transaction } from './transaction'
 import { Block } from './block'
-import { ValidationError, ErrorName } from './error'
+import { Logger, shortId } from './logger'
 import type { Hash } from './types'
+
+const log = new Logger('mempool')
 
 class MempoolManager {
     txids: Hash[] = []
@@ -14,8 +16,9 @@ class MempoolManager {
             const blocks = await objectManager.get('longestChain')
             const block = Block.fromJSON(blocks[blocks.length - 1]!)
             this.currentState = new UTXOSet(block.state!.utxos)
-        } 
+        }
         this.txids = []
+        log.info('Initialized mempool')
     }
 
     addTransaction(tx: Transaction) {
@@ -30,12 +33,14 @@ class MempoolManager {
         }
 
         this.txids.push(tx.id)
+        log.debug(`Added tx ${shortId(tx.id)} (pool size: ${this.txids.length})`)
     }
 
     async applyBlock(block: Block) {
         this.currentState = new UTXOSet(block.state!.utxos)
 
         const oldTxs = await Promise.all(this.txids.map(async txid => await objectManager.get(txid) as Transaction))
+        const prevSize = this.txids.length
         this.txids = []
         oldTxs.forEach(tx => {
             try {
@@ -44,6 +49,9 @@ class MempoolManager {
                 return
             }
         })
+        if (prevSize > 0) {
+            log.debug(`Applied block, revalidated ${this.txids.length}/${prevSize} txs`)
+        }
     }
 
     async handleReorg(oldChain: Block[], newChain: Block[], commonHeight: number) {
@@ -62,6 +70,7 @@ class MempoolManager {
                 return
             }
         })
+        log.info(`Reorg handled: revalidated ${this.txids.length}/${removedTxs.length} txs`)
     }
 
 }

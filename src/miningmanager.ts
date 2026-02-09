@@ -5,12 +5,16 @@ import { mempoolManager } from './mempool'
 import { Block } from './block'
 import { TARGET, AGENT, BLOCK_REWARD } from './utils'
 import { Transaction } from './transaction'
+import { Logger, shortId } from './logger'
 import type { BlockObject, TransactionObject } from './types'
+
+const log = new Logger('miner')
 
 class MiningManager {
     workers: Worker[] = []
 
     async init(numWorkers: number) {
+        log.info(`Starting ${numWorkers} mining workers`)
         for (let i = 0; i < numWorkers; i++) {
             const worker = new Worker(new URL("./miningworker.js", import.meta.url))
             this.workers.push(worker)
@@ -29,15 +33,18 @@ class MiningManager {
             block.nonce = this.randomNonce()
             worker.postMessage({ type: "newBlock", block })
         })
+        log.debug(`Mining on block ${shortId(tip.id)} at height ${tip.height}`)
     }
 
     async onMinedBlock(tip: BlockObject) {
-        console.log(`Mined block`, Date.now() / 1000, objectManager.id(tip))
+        const blockId = objectManager.id(tip)
+        log.info(`Mined block ${blockId}`)
+
         let block
         try {
             block = await Block.fromMining(tip)
         } catch (err: any) {
-            console.error(err)
+            log.error('Failed to create block from mined data', err.message)
             return
         }
         await objectManager.fromMining(block)

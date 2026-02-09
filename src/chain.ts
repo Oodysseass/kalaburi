@@ -5,6 +5,9 @@ import { Block } from './block'
 import { GENESIS_BLOCK } from './utils'
 import UTXOSet from './utxo'
 import { InternalError } from './error'
+import { Logger, shortId } from './logger'
+
+const log = new Logger('chain')
 
 class ChainManager {
     longestChain: Block[] = []
@@ -13,6 +16,7 @@ class ChainManager {
         if (await objectManager.exists('longestChain')) {
             const blocks = (await objectManager.get('longestChain'))
             this.longestChain = blocks.map((block: any) => Block.fromJSON(block))
+            log.info(`Loaded chain with ${this.longestChain.length} blocks, tip: ${shortId(this.longestChain.slice(-1)[0]?.id)}`)
         } else {
             const genesisBlock = Block.fromNetwork(GENESIS_BLOCK)
             genesisBlock.height = 0
@@ -20,6 +24,7 @@ class ChainManager {
             this.longestChain = [genesisBlock]
             await objectManager.add([genesisBlock], 'longestChain')
             await objectManager.add(genesisBlock, genesisBlock.id)
+            log.info('Initialized with genesis block')
         }
         miningManager.onNewBlock(this.longestChain.slice(-1)[0])
     }
@@ -31,6 +36,7 @@ class ChainManager {
                 await mempoolManager.applyBlock(blk)
             })
             miningManager.onNewBlock(block)
+            log.info(`New chain tip at height ${block.height}: ${shortId(block.id)}`)
             return
         }
 
@@ -41,6 +47,7 @@ class ChainManager {
 
             if (newChain[prevLength - 1]!.id !== blockTip!.id) {
                 const lastCommonHeight = await this.lastCommonHeight(this.longestChain, newChain)
+                log.warn(`Chain reorg detected: depth=${prevLength - 1 - lastCommonHeight}, common height=${lastCommonHeight}`)
                 await mempoolManager.handleReorg(this.longestChain, newChain, lastCommonHeight)
             } else {
                 const newBlocks = newChain.slice(prevLength)
@@ -52,6 +59,7 @@ class ChainManager {
             this.longestChain = newChain
             await objectManager.add(this.longestChain, 'longestChain')
             miningManager.onNewBlock(this.longestChain.slice(-1)[0])
+            log.info(`New chain tip at height ${block.height}: ${shortId(block.id)}`)
         }
     }
 

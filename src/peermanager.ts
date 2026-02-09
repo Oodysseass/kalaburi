@@ -1,9 +1,11 @@
 import { Socket, connect } from 'net'
 import Peer from './peer'
 import { loadPeers, savePeers } from './persistence'
+import { Logger } from './logger'
 import type { Hash } from './types'
 
 export const MAX_ACTIVE_PEERS = 20
+const log = new Logger('peers')
 
 export class PeerManager {
     activePeers: Set<Peer> = new Set()
@@ -25,8 +27,9 @@ export class PeerManager {
     }
 
     loadState() {
-        console.log('Loading state')
+        log.info('Loading persisted peers')
         const identifiers = loadPeers()
+        log.debug(`Found ${identifiers.length} known peers`)
         identifiers.forEach((identifier: string) => {
             if (this.activePeers.size >= MAX_ACTIVE_PEERS) return
             const lastColonIndex = identifier.lastIndexOf(':')

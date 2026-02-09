@@ -7,6 +7,7 @@ import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
 import { ObjectError, InternalError, DependencyError, ErrorName } from './error'
 import { MessageSchema } from './types'
+import { Logger } from './logger'
 import type {
     Message,
     PeersMessage,
@@ -25,6 +26,7 @@ export default class Peer {
     id: string = ''
     buffer: string = ''
     handshaked: boolean = false
+    log: Logger = new Logger()
     handlers: Record<Message['type'], (message: Message) => Promise<void>> = {
         hello: async () => await this.handleHello(),
         getpeers: async () => await this.handleGetPeers(),
@@ -54,12 +56,12 @@ export default class Peer {
         })
 
         this.socket.on('close', () => {
-            this.log('Client disconnected')
+            this.log.info('Disconnected')
             peerManager.removePeer(this)
         })
 
         this.socket.on('error', (error) => {
-            console.error(`Client error: ${error}`)
+            this.log.error('Socket error', error.message)
             peerManager.removePeer(this)
             this.socket.end()
         })
@@ -71,7 +73,8 @@ export default class Peer {
 
     onConnect() {
         this.id = this.socket.remoteAddress + ':' + this.socket.remotePort
-        this.log('Client connected')
+        this.log = new Logger(this.id)
+        this.log.info('Connected')
         this.sendHello()
         this.sendGetPeers()
         this.sendGetChainTip()
@@ -102,7 +105,7 @@ export default class Peer {
             message = JSON.parse(msg) as Message
         } catch (_) {
             this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
-            this.log('Could not parse message:', msg)
+            this.log.warn('Could not parse message', msg)
             peerManager.removePeer(this)
             this.socket.end()
             return
@@ -111,9 +114,9 @@ export default class Peer {
         try {
             message = MessageSchema.parse(message)
         } catch (err: any) {
-            console.error(err)
+            this.log.error('Schema validation failed', err.message)
             this.sendError('INVALID_FORMAT', 'Unknown message type')
-            this.log('Unknown message type:', msg)
+            this.log.warn('Unknown message type', msg)
             peerManager.removePeer(this)
             this.socket.end()
             return
@@ -121,18 +124,18 @@ export default class Peer {
 
         if (!this.handshaked && message.type !== 'hello') {
             this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
-            this.log('Received message before handshake:', msg)
+            this.log.warn('Received message before handshake', msg)
             peerManager.removePeer(this)
             this.socket.end()
             return
         }
 
-        this.log('Received', message)
+        this.log.debug('Received', message)
 
         await this.handlers[message.type](message)
             .then(() => true)
             .catch((err: any) => {
-                console.error(err)
+                this.log.error('Handler error', err.message)
                 if (err instanceof InternalError) {
                     return
                 }
@@ -243,6 +246,7 @@ export default class Peer {
     }
 
     async sendMessage(msg: any) {
+        this.log.debug('Sending', msg)
         const message = canonicalize(msg) + '\n'
         this.socket.write(message)
     }
@@ -300,7 +304,7 @@ export default class Peer {
                 return
             }
             if (err instanceof DependencyError) {
-                console.error(err.cause)
+                this.log.error('Dependency error', err.cause.message)
                 if (message.object.type === 'block') {
                     this.sendError(ErrorName.UNFINDABLE_OBJECT, `Block ${id} could not be validated`)
                 }
@@ -335,58 +339,6 @@ export default class Peer {
     }
 
     async handleError(message: ErrorMessage) {
-        this.log(`${message.name}:${message.description}`)
-    }
-
-    log(message: any, data?: any) {
-        const cyan = '\x1b[36m'
-        const green = '\x1b[32m'
-        const yellow = '\x1b[33m'
-        const reset = '\x1b[0m'
-
-        const coloredId = `${cyan}[${this.id}]${reset}`
-
-        const formatValue = (value: any, indent: string = '  '): string => {
-            if (value === null || typeof value !== 'object') {
-                return `${yellow}${String(value)}${reset}`
-            }
-
-            const entries = Array.isArray(value)
-                ? value.map<[string, any]>((v, i) => [String(i), v])
-                : Object.entries(value)
-
-            const inner = entries.map(
-                ([k, v]) => `${indent}${green}${k}${reset} = ${formatValue(v, indent + '  ')}`
-            ).join('\n')
-
-            return `{\n${inner}\n${indent.slice(2)}}`
-        }
-
-        const formatObject = (obj: any) => {
-            if (!obj || typeof obj !== 'object') return ` ${formatValue(obj)}`
-
-            const lines = Object.entries(obj).map(
-                ([key, value]) =>
-                    `  ${green}${key}${reset} = ${formatValue(value, '    ')}`
-            )
-
-            return `\n${lines.join('\n')}`
-        }
-
-        if (data !== undefined) {
-            const prefix = String(message)
-            if (data && typeof data === 'object') {
-                console.log(`${coloredId} ${prefix} ${formatObject(data)}`)
-            } else {
-                console.log(`${coloredId} ${prefix} ${data}`)
-            }
-            return
-        }
-
-        if (message && typeof message === 'object') {
-            console.log(`${coloredId} ${formatObject(message)}`)
-        } else {
-            console.log(`${coloredId} ${message}`)
-        }
+        this.log.warn('Remote error', `${message.name}: ${message.description}`)
     }
 }

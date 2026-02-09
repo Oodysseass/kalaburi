@@ -7,7 +7,10 @@ import { Block } from './block'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
 import { ObjectError, ErrorName } from './error'
+import { Logger, shortId } from './logger'
 import type { NetworkObject, Hash } from './types'
+
+const log = new Logger('objects')
 
 const makeLevelDB = (path: string) =>
     new Level<Hash, NetworkObject>(path, { valueEncoding: 'json' })
@@ -59,6 +62,7 @@ export class ObjectManager {
     async fromNetwork(networkObject: NetworkObject) {
         const id = this.id(networkObject)
         if (await this.exists(id)) {
+            log.debug(`Object ${shortId(id)} already exists`)
             return true
         }
         try {
@@ -76,10 +80,12 @@ export class ObjectManager {
                 await chainManager.updateLongestChain(object as Block)
             }
             await this.add(object, object.id)
+            log.debug(`Validated and stored ${object.type} ${shortId(id)}`)
             return false
         } catch (err) {
             const waiters = this.pendingFinds.get(id)
             if (waiters && waiters.length > 0) {
+                log.debug(`Rejecting ${waiters.length} waiter(s) for ${shortId(id)}`)
                 waiters.forEach(w => w.reject(err as Error))
                 this.pendingFinds.delete(id)
             }
@@ -97,6 +103,7 @@ export class ObjectManager {
             return await this.get(objectid)
         }
 
+        log.debug(`Fetching ${shortId(objectid)} from network`)
         peerManager.broadcast({
             type: 'getobject',
             objectid,
@@ -108,6 +115,7 @@ export class ObjectManager {
             const entry = {
                 resolve: (obj: NetworkObject) => {
                     clearTimeout(timer)
+                    log.debug(`Received ${shortId(objectid)} from network`)
                     resolve(obj)
                 },
                 reject: (err: Error) => {
@@ -128,6 +136,7 @@ export class ObjectManager {
                     if (arr.length === 0) this.pendingFinds.delete(objectid)
                 }
 
+                log.warn(`Timeout fetching ${shortId(objectid)}`)
                 reject(new ObjectError(ErrorName.UNFINDABLE_OBJECT, `Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`))
             }, FIND_OBJECT_TIMEOUT)
         })

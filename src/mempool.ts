@@ -26,12 +26,7 @@ class MempoolManager {
             return
         }
 
-        try {
-            this.currentState.apply(tx)
-        } catch (err: any) {
-            throw new ValidationError(ErrorName.INVALID_TX_OUTPOINT, `Transaction ${tx.id} is not valid against current mempool state.`)
-        }
-
+        this.currentState.apply(tx)
         this.txids.push(tx.id)
         log.debug(`Added tx ${shortId(tx.id)} (pool size: ${this.txids.length})`)
     }

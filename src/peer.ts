@@ -330,12 +330,12 @@ export default class Peer {
     }
 
     async handleMempool(message: MempoolMessage) {
-        message.txids.forEach(async txid => {
+        for (const txid of message.txids) {
             if (await objectManager.exists(txid)) {
-                return
+                continue
             }
             this.sendGetObject(txid)
-        })
+        }
     }
 
     async handleError(message: ErrorMessage) {

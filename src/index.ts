@@ -10,8 +10,9 @@ const log = new Logger('server')
 
 await peerManager.init()
 await miningManager.init(parseInt(process.env.MINERS || '4'))
-await chainManager.init()
 await mempoolManager.init()
+await chainManager.init()
+
 const server = createServer((socket) => {
     peerManager.addPeer(socket)
 })

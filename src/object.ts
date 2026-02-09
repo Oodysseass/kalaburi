@@ -67,20 +67,14 @@ export class ObjectManager {
         }
         try {
             const object = await this.validate(networkObject)
+            await this.add(object, object.id)
+            log.debug(`Validated and stored ${object.type} ${shortId(id)}`)
             if (object.type === 'transaction') {
-                try {
-                    mempoolManager.addTransaction(object as Transaction)
-                } catch (err: any) {
-                    if (!this.pendingFinds.has(id)) {
-                        throw err
-                    }
-                }
+                mempoolManager.addTransaction(object as Transaction)
             }
             else if (object.type === 'block') {
                 await chainManager.updateLongestChain(object as Block)
             }
-            await this.add(object, object.id)
-            log.debug(`Validated and stored ${object.type} ${shortId(id)}`)
             return false
         } catch (err) {
             const waiters = this.pendingFinds.get(id)
@@ -99,9 +93,9 @@ export class ObjectManager {
     }
 
     async findObject(objectid: Hash): Promise<NetworkObject> {
-        if (await this.exists(objectid)) {
+        try {
             return await this.get(objectid)
-        }
+        } catch (err: any) { }
 
         log.debug(`Fetching ${shortId(objectid)} from network`)
         peerManager.broadcast({

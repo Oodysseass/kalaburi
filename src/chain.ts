@@ -32,9 +32,9 @@ class ChainManager {
     async updateLongestChain(block: Block) {
         if (this.longestChain.length === 0) {
             this.longestChain = await this.getChain(block)
-            this.longestChain.forEach(async (blk) => {
+            for (const blk of this.longestChain) {
                 await mempoolManager.applyBlock(blk)
-            })
+            }
             miningManager.onNewBlock(block)
             log.info(`New chain tip at height ${block.height}: ${shortId(block.id)}`)
             return
@@ -51,9 +51,9 @@ class ChainManager {
                 await mempoolManager.handleReorg(this.longestChain, newChain, lastCommonHeight)
             } else {
                 const newBlocks = newChain.slice(prevLength)
-                newBlocks.forEach(async (blk) => {
+                for (const blk of newBlocks) {
                     await mempoolManager.applyBlock(blk)
-                })
+                }
             }
 
             this.longestChain = newChain

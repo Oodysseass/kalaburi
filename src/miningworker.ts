@@ -15,10 +15,9 @@ let nonceBinary: Uint8Array
 let nonceHexBytes: Uint8Array
 let targetBytes: Uint8Array
 
-let prefix: Uint8Array
-let suffix: Uint8Array
-let workBuffer: Uint8Array
-let nonceOffset: number
+let suffixBuf: Uint8Array
+let prefixHasher: ReturnType<typeof blake2s.create>
+let reusableClone: ReturnType<typeof blake2s.create>
 
 const HEX_CHARS = utf8ToBytes('0123456789abcdef')
 
@@ -41,9 +40,11 @@ const mine = () => {
 
   for (let i = 0; i < BATCH_SIZE; i++) {
     binaryToHexBytes(nonceBinary, nonceHexBytes)
-    workBuffer.set(nonceHexBytes, nonceOffset)
 
-    const digest = blake2s(workBuffer)
+    const clone = prefixHasher._cloneInto(reusableClone)
+    clone.update(nonceHexBytes)
+    clone.update(suffixBuf)
+    const digest = clone.digest()
 
     if (meetsTarget(digest, targetBytes)) {
       currentBlock.nonce = bytesToHex(nonceBinary)
@@ -73,13 +74,12 @@ const setupCanonicalParts = () => {
   const before = canon.slice(0, idx + '"nonce":"'.length)
   const after = canon.slice(idx + marker.length - 1)
 
-  prefix = utf8ToBytes(before)
-  suffix = utf8ToBytes(after)
-  nonceOffset = prefix.length
+  const prefixBytes = utf8ToBytes(before)
+  suffixBuf = utf8ToBytes(after)
 
-  workBuffer = new Uint8Array(prefix.length + 64 + suffix.length)
-  workBuffer.set(prefix, 0)
-  workBuffer.set(suffix, prefix.length + 64)
+  prefixHasher = blake2s.create()
+  prefixHasher.update(prefixBytes)
+  reusableClone = prefixHasher.clone()
 }
 
 const binaryToHexBytes = (bin: Uint8Array, out: Uint8Array) => {

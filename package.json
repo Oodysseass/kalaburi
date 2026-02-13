@@ -9,7 +9,8 @@
     "start": "bun run build && node dist/index.js",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "bench": "bun run bench/hashrate.ts"
+    "bench": "bun run scripts/hashrate.ts",
+    "genesis": "bun run build && bun run scripts/mineblock.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -11,12 +11,16 @@ if (!parentPort) {
 let abort = false
 let currentBlock: BlockObject
 
-let nonceBytes: Uint8Array
+let nonceBinary: Uint8Array
+let nonceHexBytes: Uint8Array
 let targetBytes: Uint8Array
 
 let prefix: Uint8Array
 let suffix: Uint8Array
 let workBuffer: Uint8Array
+let nonceOffset: number
+
+const HEX_CHARS = utf8ToBytes('0123456789abcdef')
 
 parentPort.on('message', (msg) => {
   if (msg.type === 'abort') {
@@ -35,27 +39,27 @@ parentPort.on('message', (msg) => {
 const mine = () => {
   const BATCH_SIZE = 10_000
 
-  while (!abort) {
-    for (let i = 0; i < BATCH_SIZE; i++) {
-      workBuffer.set(prefix, 0)
-      workBuffer.set(nonceBytes, prefix.length)
-      workBuffer.set(suffix, prefix.length + nonceBytes.length)
+  for (let i = 0; i < BATCH_SIZE; i++) {
+    binaryToHexBytes(nonceBinary, nonceHexBytes)
+    workBuffer.set(nonceHexBytes, nonceOffset)
 
-      const digest = blake2s(workBuffer)
+    const digest = blake2s(workBuffer)
 
-      if (meetsTarget(digest, targetBytes)) {
-        currentBlock.nonce = bytesToHex(nonceBytes)
-        parentPort!.postMessage({ type: 'foundBlock', block: currentBlock })
-        return
-      }
-
-      incrementNonce(nonceBytes)
+    if (meetsTarget(digest, targetBytes)) {
+      currentBlock.nonce = bytesToHex(nonceBinary)
+      parentPort!.postMessage({ type: 'foundBlock', block: currentBlock })
+      return
     }
+
+    incrementNonce(nonceBinary)
   }
+
+  if (!abort) setImmediate(mine)
 }
 
 const setupCanonicalParts = () => {
-  nonceBytes = hexToBytes(currentBlock.nonce)
+  nonceBinary = hexToBytes(currentBlock.nonce)
+  nonceHexBytes = new Uint8Array(64)
   targetBytes = hexToBytes(currentBlock.T)
 
   const blockCopy: BlockObject = { ...currentBlock, nonce: '' }
@@ -71,10 +75,18 @@ const setupCanonicalParts = () => {
 
   prefix = utf8ToBytes(before)
   suffix = utf8ToBytes(after)
+  nonceOffset = prefix.length
 
-  workBuffer = new Uint8Array(
-    prefix.length + nonceBytes.length + suffix.length
-  )
+  workBuffer = new Uint8Array(prefix.length + 64 + suffix.length)
+  workBuffer.set(prefix, 0)
+  workBuffer.set(suffix, prefix.length + 64)
+}
+
+const binaryToHexBytes = (bin: Uint8Array, out: Uint8Array) => {
+  for (let i = 0; i < bin.length; i++) {
+    out[i * 2] = HEX_CHARS[bin[i] >> 4]
+    out[i * 2 + 1] = HEX_CHARS[bin[i] & 0x0f]
+  }
 }
 
 const incrementNonce = (n: Uint8Array) => {

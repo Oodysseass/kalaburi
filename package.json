@@ -8,7 +8,8 @@
     "build": "bun build src/index.ts src/miningworker.ts --outdir dist --target node",
     "start": "bun run build && node dist/index.js",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "bench": "bun run bench/hashrate.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",

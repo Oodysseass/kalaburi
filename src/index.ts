@@ -1,3 +1,4 @@
+import os from 'os'
 import { createServer } from 'net'
 import { peerManager } from './peermanager'
 import { chainManager } from './chain'
@@ -6,10 +7,11 @@ import { miningManager } from './miningmanager'
 import { Logger } from './logger'
 
 const PORT = process.env.PORT || 18018
+const MINERS = parseInt(process.env.MINERS || os.cpus().length.toString())
 const log = new Logger('server')
 
 await peerManager.init()
-await miningManager.init(parseInt(process.env.MINERS || '4'))
+await miningManager.init(MINERS)
 await mempoolManager.init()
 await chainManager.init()
 

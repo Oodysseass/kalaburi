@@ -53,7 +53,7 @@ class MiningManager {
 
     async createNextBlock(tip: Block) {
         const coinbase = await this.createCoinbase(tip.height! + 1)
-        const txids = mempoolManager.txids.concat(objectManager.id(coinbase))
+        const txids = [objectManager.id(coinbase), ...mempoolManager.txids]
         return {
             T: TARGET,
             previd: tip.id,

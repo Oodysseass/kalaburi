@@ -52,6 +52,10 @@ export class Block {
                     objectManager.id(minedBlock)
                 )
 
+        if (BigInt('0x' + block.id) >= BigInt('0x' + block.T)) {
+            throw new InternalError(`Mined block ${block.id} does not satisfy PoW inequality`)
+        }
+
         if (minedBlock.previd === null) {
             throw new InternalError(`Mined block has no parent`)
         }

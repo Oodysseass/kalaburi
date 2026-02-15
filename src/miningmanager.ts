@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { Worker } from 'worker_threads'
 import { objectManager } from './object'
 import { peerManager } from './peermanager'
@@ -80,7 +81,7 @@ class MiningManager {
     }
 
     randomNonce(): string {
-        const bytes = crypto.getRandomValues(new Uint8Array(32))
+        const bytes = crypto.randomBytes(32)
         return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("")
     }
 }

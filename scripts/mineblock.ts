@@ -31,6 +31,8 @@ console.log()
 
 const workers: Worker[] = []
 let found = false
+let totalHashes = 0
+const workerRates = new Map<number, number>()
 const startTime = Date.now()
 
 for (let i = 0; i < NUM_WORKERS; i++) {
@@ -48,8 +50,10 @@ for (let i = 0; i < NUM_WORKERS; i++) {
       const minedBlock = msg.block as BlockObject
       const blockId = hash(minedBlock)
 
-      console.log(`Mined:   ${new Date().toLocaleString()}`)
-      console.log(`Elapsed: ${elapsed.toFixed(1)}s`)
+      console.log()
+      console.log(`Mined:    ${new Date().toLocaleString()}`)
+      console.log(`Elapsed:  ${elapsed.toFixed(1)}s`)
+      console.log(`Hashes:   ${(totalHashes / 1e6).toFixed(1)}M`)
       console.log(`Block ID: ${blockId}`)
       console.log(`Nonce:    ${minedBlock.nonce}`)
       console.log()
@@ -59,6 +63,16 @@ for (let i = 0; i < NUM_WORKERS; i++) {
         w.postMessage({ type: 'abort' })
         w.terminate()
       }
+    }
+
+    if (msg.type === 'progress') {
+      totalHashes += msg.hashes
+      workerRates.set(i, msg.rate)
+      const combinedRate = Array.from(workerRates.values()).reduce((a, b) => a + b, 0)
+      const elapsed = (Date.now() - startTime) / 1000
+      const mins = Math.floor(elapsed / 60)
+      const secs = Math.floor(elapsed % 60)
+      process.stdout.write(`\r${mins}m${secs.toString().padStart(2, '0')}s | ${(combinedRate / 1000).toFixed(0)}k H/s | ${(totalHashes / 1e6).toFixed(1)}M hashes`)
     }
   })
 

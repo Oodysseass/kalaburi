@@ -35,6 +35,9 @@ parentPort.on('message', (msg) => {
   }
 })
 
+let hashCount = 0
+let lastReport = Date.now()
+
 const mine = () => {
   const BATCH_SIZE = 10_000
 
@@ -53,6 +56,15 @@ const mine = () => {
     }
 
     incrementNonce(nonceBinary)
+  }
+
+  hashCount += BATCH_SIZE
+  const now = Date.now()
+  if (now - lastReport >= 10_000) {
+    const rate = hashCount / ((now - lastReport) / 1000)
+    parentPort!.postMessage({ type: 'progress', hashes: hashCount, rate })
+    hashCount = 0
+    lastReport = now
   }
 
   if (!abort) setImmediate(mine)

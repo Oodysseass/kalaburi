@@ -12,11 +12,11 @@ export const FIND_OBJECT_TIMEOUT = 2000
 export let TARGET = "00000000abc00000000000000000000000000000000000000000000000000000"
 export const BLOCK_REWARD = 50 * 10 ** 12
 export const GENESIS_BLOCK: BlockObject = {
-    T: TARGET,
-    created: 1671062400,
+    T: "00000000abc00000000000000000000000000000000000000000000000000000",
+    created: 1771159355,
     miner: "Marabu",
-    nonce: "000000000000000000000000000000000000000000000000000000021bea03ed",
-    note: "The New York Times 2022-12-13: Scientists Achieve Nuclear Fusion Breakthrough With Blast of 192 Lasers",
+    nonce: "00dd82159556175752d9ba7349df67bddd237b59183747383f7b720e85c32347",
+    note: "Financial Times 2026-02-13: Crypto's battle with the banks is splitting Trump's base",
     previd: null,
     txids: [],
     type: "block"

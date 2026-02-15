@@ -12,7 +12,7 @@ const NUM_WORKERS = os.cpus().length
 const block: BlockObject = {
   T: TARGET,
   created: Math.floor(Date.now() / 1000),
-  miner: "kalaburi",
+  miner: "Marabu",
   nonce: "0000000000000000000000000000000000000000000000000000000000000000",
   note: "Financial Times 2026-02-13: Crypto's battle with the banks is splitting Trump's base",
   previd: null,
@@ -24,14 +24,14 @@ const hash = (obj: any) =>
   Buffer.from(blake2s(utf8ToBytes(canonicalize(obj)!))).toString('hex')
 
 console.log(`Mining genesis block with ${NUM_WORKERS} workers...`)
-console.log(`Target: ${TARGET}`)
-console.log(`Note:   ${block.note}`)
-console.log(`Time:   ${new Date(block.created * 1000).toISOString()}`)
+console.log(`Target:  ${TARGET}`)
+console.log(`Note:    ${block.note}`)
+console.log(`Started: ${new Date().toLocaleString()}`)
 console.log()
 
 const workers: Worker[] = []
 let found = false
-const startTime = performance.now()
+const startTime = Date.now()
 
 for (let i = 0; i < NUM_WORKERS; i++) {
   const workerBlock = { ...block }
@@ -44,11 +44,12 @@ for (let i = 0; i < NUM_WORKERS; i++) {
   worker.on('message', (msg) => {
     if (msg.type === 'foundBlock' && !found) {
       found = true
-      const elapsed = (performance.now() - startTime) / 1000
+      const elapsed = (Date.now() - startTime) / 1000
       const minedBlock = msg.block as BlockObject
       const blockId = hash(minedBlock)
 
-      console.log(`Genesis block mined in ${elapsed.toFixed(1)}s`)
+      console.log(`Mined:   ${new Date().toLocaleString()}`)
+      console.log(`Elapsed: ${elapsed.toFixed(1)}s`)
       console.log(`Block ID: ${blockId}`)
       console.log(`Nonce:    ${minedBlock.nonce}`)
       console.log()

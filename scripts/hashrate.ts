@@ -12,7 +12,8 @@ const binaryToHexBytes = (bin: Uint8Array, out: Uint8Array) => {
 
 const incrementNonce = (n: Uint8Array) => {
   for (let i = n.length - 1; i >= 0; i--) {
-    if (++n[i] !== 0) break
+    n[i]++
+    if (n[i] !== 0) break
   }
 }
 

@@ -17,7 +17,6 @@ let targetBytes: Uint8Array
 
 let suffixBuf: Uint8Array
 let prefixHasher: ReturnType<typeof blake2s.create>
-let reusableClone: ReturnType<typeof blake2s.create>
 
 const HEX_CHARS = utf8ToBytes('0123456789abcdef')
 
@@ -44,7 +43,7 @@ const mine = () => {
   for (let i = 0; i < BATCH_SIZE; i++) {
     binaryToHexBytes(nonceBinary, nonceHexBytes)
 
-    const clone = prefixHasher._cloneInto(reusableClone)
+    const clone = prefixHasher.clone()
     clone.update(nonceHexBytes)
     clone.update(suffixBuf)
     const digest = clone.digest()
@@ -91,7 +90,6 @@ const setupCanonicalParts = () => {
 
   prefixHasher = blake2s.create()
   prefixHasher.update(prefixBytes)
-  reusableClone = prefixHasher.clone()
 }
 
 const binaryToHexBytes = (bin: Uint8Array, out: Uint8Array) => {

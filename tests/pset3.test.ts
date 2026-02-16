@@ -32,7 +32,7 @@ describe('1) block validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: '0000000a0bc00000000000000000000000000000000000000000000000000000',
-            created: 1671062401,
+            created: 1771159361,
             nonce: '26',
             txids: [],
             type: 'block',
@@ -50,7 +50,7 @@ describe('1) block validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         const block = {
             T: TARGET,
-            created: 1671062402,
+            created: 1771159362,
             nonce: '23',
             txids: [],
             type: 'block',
@@ -78,7 +78,7 @@ describe('1) block validation', () => {
         }
         const block = {
             T: TARGET,
-            created: 1671062401,
+            created: 1771159361,
             nonce: '29',
             txids: [id(tx)],
             type: 'block',
@@ -120,7 +120,7 @@ describe('1) block validation', () => {
         s.clearWritten()
         const block = {
             T: TARGET,
-            created: 1671062401,
+            created: 1771159361,
             nonce: '29',
             txids: [id(coinbase)],
             type: 'block',
@@ -186,7 +186,7 @@ describe('1) block validation', () => {
         s.clearWritten()
         const block = {
             T: TARGET,
-            created: 1671062401,
+            created: 1771159361,
             nonce: '29',
             txids: [id(coinbase)],
             type: 'block',

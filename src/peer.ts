@@ -1,7 +1,7 @@
 import { Socket } from 'net'
 import canonicalize from 'canonicalize'
 import { VERSION, AGENT, validatePeerAddress } from './utils'
-import { peerManager, MAX_ACTIVE_PEERS } from './peermanager'
+import { peerManager } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
@@ -21,11 +21,19 @@ import type {
     Hash
 } from './types'
 
+const MAX_BUFFER_SIZE = 1024 * 1024
+const RATE_LIMIT_WINDOW = 10_000
+const RATE_LIMIT_MAX = 100
+
 export default class Peer {
     socket: Socket
     id: string = ''
+    targetId: string = ''
     buffer: string = ''
+    connected: boolean = false
     handshaked: boolean = false
+    messageCount: number = 0
+    lastRateReset: number = Date.now()
     log: Logger = new Logger()
     handlers: Record<Message['type'], (message: Message) => Promise<void>> = {
         hello: async () => await this.handleHello(),
@@ -41,18 +49,15 @@ export default class Peer {
         error: async (m) => await this.handleError(m as ErrorMessage),
     }
 
-    constructor(socket: Socket) {
+    constructor(socket: Socket, targetId?: string) {
         this.socket = socket
+        if (targetId) this.targetId = targetId
         this.initializeSocket()
     }
 
     initializeSocket() {
         this.socket.on('connect', () => {
-            if (peerManager.activePeers.size < MAX_ACTIVE_PEERS) {
-                this.onConnect.bind(this)
-            } else {
-                this.socket.end()
-            }
+            this.onConnect()
         })
 
         this.socket.on('close', () => {
@@ -62,6 +67,8 @@ export default class Peer {
 
         this.socket.on('error', (error) => {
             this.log.error('Socket error', error.message)
+            const identifier = this.id || this.targetId
+            if (identifier) peerManager.forgetPeer(identifier)
             peerManager.removePeer(this)
             this.socket.end()
         })
@@ -72,6 +79,8 @@ export default class Peer {
     }
 
     onConnect() {
+        if (this.connected) return
+        this.connected = true
         this.id = this.socket.remoteAddress + ':' + this.socket.remotePort
         this.log = new Logger(this.id)
         this.log.info('Connected')
@@ -80,12 +89,18 @@ export default class Peer {
         this.sendGetChainTip()
         this.sendGetMempool()
         peerManager.activePeers.add(this)
-        peerManager.knownAddresses.add(this.id)
+        peerManager.addKnownPeer(this.id)
         peerManager.saveState()
     }
 
     handleStream(data: string) {
         this.buffer += data
+        if (this.buffer.length > MAX_BUFFER_SIZE) {
+            this.log.warn('Buffer overflow, disconnecting')
+            peerManager.removePeer(this)
+            this.socket.end()
+            return
+        }
         let messages = this.buffer.split('\n')
 
         while (messages.length > 1) {
@@ -99,12 +114,25 @@ export default class Peer {
     }
 
     async handleMessage(msg: string) {
+        const now = Date.now()
+        if (now - this.lastRateReset > RATE_LIMIT_WINDOW) {
+            this.messageCount = 0
+            this.lastRateReset = now
+        }
+        this.messageCount++
+        if (this.messageCount > RATE_LIMIT_MAX) {
+            this.log.warn('Rate limit exceeded, disconnecting')
+            peerManager.removePeer(this)
+            this.socket.end()
+            return
+        }
+
         let message: Message
 
         try {
             message = JSON.parse(msg) as Message
         } catch (_) {
-            this.sendError('INVALID_FORMAT', `Could not parse message: '${msg}'`)
+            this.sendError('INVALID_FORMAT', `Could not parse message: '${msg.slice(0, 100)}'`)
             this.log.warn('Could not parse message', msg)
             peerManager.removePeer(this)
             this.socket.end()
@@ -162,7 +190,7 @@ export default class Peer {
     }
 
     async sendPeers() {
-        const peers = Array.from(peerManager.knownAddresses)
+        const peers = peerManager.knownPeersList()
 
         const response = {
             type: 'peers',
@@ -266,7 +294,7 @@ export default class Peer {
         }
 
         message.peers.forEach(peer => validatePeerAddress(peer))
-        message.peers.forEach(peer => peerManager.knownAddresses.add(peer))
+        message.peers.forEach(peer => peerManager.addKnownPeer(peer))
         peerManager.saveState()
     }
 

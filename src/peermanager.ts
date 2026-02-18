@@ -4,26 +4,46 @@ import { loadPeers, savePeers } from './persistence'
 import { Logger } from './logger'
 import type { Hash } from './types'
 
-export const MAX_ACTIVE_PEERS = 20
 const log = new Logger('peers')
 
 export class PeerManager {
     activePeers: Set<Peer> = new Set()
-    knownAddresses: Set<string> = new Set()
+    knownAddresses: Map<string, number> = new Map()
 
     async init() {
         this.loadState()
     }
 
     addPeer(socket: Socket) {
-        if (this.activePeers.size < MAX_ACTIVE_PEERS) {
-            const p = new Peer(socket)
-            p.onConnect()
-        }
+        const p = new Peer(socket)
+        p.onConnect()
     }
 
     removePeer(peer: Peer) {
         this.activePeers.delete(peer)
+    }
+
+    addKnownPeer(identifier: string) {
+        const lastColon = identifier.lastIndexOf(':')
+        const ip = identifier.slice(0, lastColon)
+        const port = parseInt(identifier.slice(lastColon + 1))
+        if (ip && !isNaN(port)) {
+            this.knownAddresses.set(ip, port)
+        }
+    }
+
+    forgetPeer(identifier: string) {
+        const lastColon = identifier.lastIndexOf(':')
+        const ip = identifier.slice(0, lastColon)
+        if (ip && this.knownAddresses.has(ip)) {
+            this.knownAddresses.delete(ip)
+            this.saveState()
+            log.info(`Forgot peer ${identifier}`)
+        }
+    }
+
+    knownPeersList(): string[] {
+        return Array.from(this.knownAddresses.entries()).map(([ip, port]) => `${ip}:${port}`)
     }
 
     loadState() {
@@ -31,18 +51,17 @@ export class PeerManager {
         const identifiers = loadPeers()
         log.debug(`Found ${identifiers.length} known peers`)
         identifiers.forEach((identifier: string) => {
-            if (this.activePeers.size >= MAX_ACTIVE_PEERS) return
-            const lastColonIndex = identifier.lastIndexOf(':')
-            const address = identifier.slice(0, lastColonIndex)
-            const port = identifier.slice(lastColonIndex + 1)
-            const socket = connect(parseInt(port), address)
-            new Peer(socket)
+            this.addKnownPeer(identifier)
+            const lastColon = identifier.lastIndexOf(':')
+            const address = identifier.slice(0, lastColon)
+            const port = parseInt(identifier.slice(lastColon + 1))
+            const socket = connect(port, address)
+            new Peer(socket, identifier)
         })
-        this.knownAddresses = new Set(identifiers)
     }
 
     saveState() {
-        savePeers(Array.from(this.knownAddresses))
+        savePeers(this.knownPeersList())
     }
 
     broadcast(message: any) {

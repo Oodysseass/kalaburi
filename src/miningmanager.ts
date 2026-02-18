@@ -13,6 +13,9 @@ const log = new Logger('miner')
 
 class MiningManager {
     workers: Worker[] = []
+    totalHashes = 0
+    workerRates = new Map<number, number>()
+    miningStartTime = 0
 
     async init(numWorkers: number) {
         log.info(`Starting ${numWorkers} mining workers`)
@@ -23,6 +26,9 @@ class MiningManager {
                 if (msg.type === "foundBlock") {
                     this.onMinedBlock(msg.block)
                 }
+                if (msg.type === "progress") {
+                    this.totalHashes += msg.hashes
+                }
             })
         }
     }
@@ -30,6 +36,10 @@ class MiningManager {
     async onNewBlock(tip: Block) {
         const block = await this.createNextBlock(tip)
         this.workers.forEach(worker => worker.postMessage({ type: "abort" }))
+
+        this.totalHashes = 0
+        this.miningStartTime = Date.now()
+
         this.workers.forEach(worker => {
             block.nonce = this.randomNonce()
             worker.postMessage({ type: "newBlock", block })
@@ -39,7 +49,11 @@ class MiningManager {
 
     async onMinedBlock(tip: BlockObject) {
         const blockId = objectManager.id(tip)
-        log.info(`Mined block ${blockId}`)
+        const elapsed = (Date.now() - this.miningStartTime) / 1000
+        const mins = Math.floor(elapsed / 60)
+        const secs = Math.floor(elapsed % 60)
+
+        log.info(`Mined block ${shortId(blockId)} in ${mins}m${secs.toString().padStart(2, '0')}s | ${(this.totalHashes / 1e6).toFixed(1)}M hashes`)
 
         let block
         try {

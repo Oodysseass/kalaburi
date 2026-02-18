@@ -61,13 +61,17 @@ export default class Peer {
         })
 
         this.socket.on('close', () => {
-            this.log.info('Disconnected')
+            this.log.info(`Disconnected (was ${this.handshaked ? 'handshaked' : 'not handshaked'})`)
             peerManager.removePeer(this)
         })
 
         this.socket.on('error', (error) => {
-            this.log.error('Socket error', error.message)
             const identifier = this.id || this.targetId
+            if (!this.connected) {
+                this.log.error(`Failed to connect to ${identifier}: ${error.message}`)
+            } else {
+                this.log.error(`Socket error: ${error.message}`)
+            }
             if (identifier) peerManager.forgetPeer(identifier)
             peerManager.removePeer(this)
             this.socket.end()
@@ -96,7 +100,7 @@ export default class Peer {
     handleStream(data: string) {
         this.buffer += data
         if (this.buffer.length > MAX_BUFFER_SIZE) {
-            this.log.warn('Buffer overflow, disconnecting')
+            this.log.warn(`Buffer overflow (${this.buffer.length} chars), disconnecting`)
             peerManager.removePeer(this)
             this.socket.end()
             return

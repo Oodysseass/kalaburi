@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import os from 'os'
 import { createServer } from 'net'
 import { peerManager } from './peermanager'

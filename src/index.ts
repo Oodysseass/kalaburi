@@ -11,10 +11,10 @@ const PORT = process.env.PORT || 18018
 const MINERS = parseInt(process.env.MINERS || os.cpus().length.toString())
 const log = new Logger('server')
 
-await peerManager.init()
 await miningManager.init(MINERS)
 await mempoolManager.init()
 await chainManager.init()
+await peerManager.init()
 
 const server = createServer((socket) => {
     peerManager.addPeer(socket)

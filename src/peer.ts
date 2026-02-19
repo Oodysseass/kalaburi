@@ -93,8 +93,10 @@ export default class Peer {
         this.sendGetChainTip()
         this.sendGetMempool()
         peerManager.activePeers.add(this)
-        peerManager.addKnownPeer(this.id)
-        peerManager.saveState()
+        if (this.targetId) {
+            peerManager.addKnownPeer(this.id)
+            peerManager.saveState()
+        }
     }
 
     handleStream(data: string) {

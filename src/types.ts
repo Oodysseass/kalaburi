@@ -70,7 +70,7 @@ export const NetworkObjectSchema = z.union([
 export const HelloMessageSchema = z.object({
     type: z.literal('hello'),
     version: z.string().refine(v => matchesVersion(v)),
-    agent: z.string()
+    agent: z.string().optional()
 })
 
 export const GetPeersMessageSchema = z.object({

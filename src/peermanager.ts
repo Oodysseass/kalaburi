@@ -35,6 +35,10 @@ export class PeerManager {
         const ip = identifier.slice(0, lastColon)
         const port = parseInt(identifier.slice(lastColon + 1))
         if (ip && !isNaN(port)) {
+            if (ip === 'localhost' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('127.')) {
+                log.warn(`Ignoring localhost peer: ${identifier}`)
+                return
+            }
             this.knownAddresses.set(ip, port)
         }
     }

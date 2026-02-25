@@ -69,6 +69,15 @@ export const validatePeerAddress = (address: string) => {
     if (!net.isIPv4(host) && !net.isIPv6(host) && !isHostname(host)) {
         throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address: ${address}`)
     }
+
+    if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host.startsWith('127.')
+    ) {
+        throw new ValidationError(ErrorName.INVALID_FORMAT, `Localhost peer addresses are not allowed: ${address}`)
+    }
 };
 
 export const verify = (publicKey: string, signature: string, message: string) => {

@@ -5,7 +5,7 @@ export const HashSchema = z.string()
 
 export const SigSchema = z.string()
 
-export const PubKeySchema = z.string()
+export const PubKeySchema = z.string().lowercase()
 
 export const OutpointObjectSchema = z.object({
     txid: HashSchema,

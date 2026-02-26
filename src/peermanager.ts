@@ -1,6 +1,7 @@
 import { Socket, connect } from 'net'
 import Peer from './peer'
 import { loadPeers, savePeers } from './persistence'
+import { parsePeerAddress, validatePeerAddress } from './utils'
 import { Logger } from './logger'
 import type { Hash } from './types'
 
@@ -31,25 +32,25 @@ export class PeerManager {
     }
 
     addKnownPeer(identifier: string) {
-        const lastColon = identifier.lastIndexOf(':')
-        const ip = identifier.slice(0, lastColon)
-        const port = parseInt(identifier.slice(lastColon + 1))
-        if (ip && !isNaN(port)) {
-            if (ip === 'localhost' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('127.')) {
-                log.warn(`Ignoring localhost peer: ${identifier}`)
-                return
-            }
-            this.knownAddresses.set(ip, port)
+        try {
+            validatePeerAddress(identifier)
+            const { host, port } = parsePeerAddress(identifier)
+            this.knownAddresses.set(host, port)
+        } catch {
+            log.warn(`Rejecting peer address: ${identifier}`)
         }
     }
 
     forgetPeer(identifier: string) {
-        const lastColon = identifier.lastIndexOf(':')
-        const ip = identifier.slice(0, lastColon)
-        if (ip && this.knownAddresses.has(ip)) {
-            this.knownAddresses.delete(ip)
-            this.saveState()
-            log.info(`Forgot peer ${identifier}`)
+        try {
+            const { host } = parsePeerAddress(identifier)
+            if (this.knownAddresses.has(host)) {
+                this.knownAddresses.delete(host)
+                this.saveState()
+                log.info(`Forgot peer ${identifier}`)
+            }
+        } catch {
+            log.warn(`Invalid peer address, cannot forget: ${identifier}`)
         }
     }
 

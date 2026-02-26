@@ -40,13 +40,25 @@ export const matchesVersion = (version: string, pattern = "0.10.x") => {
     return vMajor === pMajor && vMinor === pMinor
 }
 
-export const validatePeerAddress = (address: string) => {
-    const lastColon = address.lastIndexOf(':')
-    if (lastColon === -1) {
-        throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address (missing port): ${address}`)
+export const parsePeerAddress = (address: string): { host: string; port: number } => {
+    let host: string
+    let portStr: string
+
+    if (address.startsWith('[')) {
+        const closingBracket = address.indexOf(']')
+        if (closingBracket === -1 || address[closingBracket + 1] !== ':') {
+            throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid bracketed IPv6 peer address: ${address}`)
+        }
+        host = address.slice(1, closingBracket)
+        portStr = address.slice(closingBracket + 2)
+    } else {
+        const lastColon = address.lastIndexOf(':')
+        if (lastColon === -1) {
+            throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address (missing port): ${address}`)
+        }
+        host = address.slice(0, lastColon)
+        portStr = address.slice(lastColon + 1)
     }
-    const host = address.slice(0, lastColon)
-    const portStr = address.slice(lastColon + 1)
 
     const port = Number(portStr);
     if (
@@ -56,6 +68,12 @@ export const validatePeerAddress = (address: string) => {
     ) {
         throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid port in peer address: ${address}`)
     }
+
+    return { host, port }
+}
+
+export const validatePeerAddress = (address: string) => {
+    const { host } = parsePeerAddress(address)
 
     const isHostname = (h: string): boolean => {
         if (h === 'localhost') return true

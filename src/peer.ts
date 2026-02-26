@@ -1,6 +1,6 @@
 import { Socket } from 'net'
 import canonicalize from 'canonicalize'
-import { VERSION, AGENT, validatePeerAddress } from './utils'
+import { VERSION, AGENT } from './utils'
 import { peerManager } from './peermanager'
 import { objectManager } from './object'
 import { chainManager } from './chain'
@@ -72,14 +72,19 @@ export default class Peer {
             } else {
                 this.log.error(`Socket error: ${error.message}`)
             }
-            if (identifier) peerManager.forgetPeer(identifier)
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
         })
 
         this.socket.on('data', (data) => {
             this.handleStream(data.toString())
         })
+    }
+
+    disconnect() {
+        const identifier = this.targetId || this.id
+        if (identifier) peerManager.forgetPeer(identifier)
+        peerManager.removePeer(this)
+        this.socket.end()
     }
 
     onConnect() {
@@ -103,8 +108,7 @@ export default class Peer {
         this.buffer += data
         if (this.buffer.length > MAX_BUFFER_SIZE) {
             this.log.warn(`Buffer overflow (${this.buffer.length} chars), disconnecting`)
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
             return
         }
         let messages = this.buffer.split('\n')
@@ -128,8 +132,7 @@ export default class Peer {
         this.messageCount++
         if (this.messageCount > RATE_LIMIT_MAX) {
             this.log.warn('Rate limit exceeded, disconnecting')
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
             return
         }
 
@@ -140,8 +143,7 @@ export default class Peer {
         } catch (_) {
             this.sendError('INVALID_FORMAT', `Could not parse message: '${msg.slice(0, 100)}'`)
             this.log.warn('Could not parse message', msg)
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
             return
         }
 
@@ -151,16 +153,14 @@ export default class Peer {
             this.log.error('Schema validation failed', err.message)
             this.sendError('INVALID_FORMAT', 'Unknown message type')
             this.log.warn('Unknown message type', msg)
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
             return
         }
 
         if (!this.handshaked && message.type !== 'hello') {
             this.sendError('INVALID_HANDSHAKE', `Received message type "${message.type}" before handshake`)
             this.log.warn('Received message before handshake', msg)
-            peerManager.removePeer(this)
-            this.socket.end()
+            this.disconnect()
             return
         }
 
@@ -299,7 +299,6 @@ export default class Peer {
             return
         }
 
-        message.peers.forEach(peer => validatePeerAddress(peer))
         message.peers.forEach(peer => peerManager.addKnownPeer(peer))
         peerManager.saveState()
     }

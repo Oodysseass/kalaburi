@@ -299,21 +299,15 @@ export default class Peer {
             return
         }
 
-        if (message.peers.length > 100) {
-            this.log.warn(`Peers message too large (${message.peers.length}), ignoring`)
-            return
-        }
-
+        const MAX_PEERS = 100
         const seen = new Set<string>()
         for (const peer of message.peers) {
-            if (seen.has(peer)) {
-                this.log.warn(`Duplicate peer in message: ${peer}, ignoring`)
-                return
-            }
+            if (seen.has(peer)) continue
+            if (seen.size >= MAX_PEERS) break
             seen.add(peer)
         }
 
-        message.peers.forEach(peer => peerManager.addKnownPeer(peer))
+        seen.forEach(peer => peerManager.addKnownPeer(peer))
         peerManager.saveState()
     }
 

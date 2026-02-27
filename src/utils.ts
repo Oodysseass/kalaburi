@@ -88,15 +88,27 @@ export const validatePeerAddress = (address: string) => {
         throw new ValidationError(ErrorName.INVALID_FORMAT, `Invalid peer address: ${address}`)
     }
 
-    if (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host === '::1' ||
-        host.startsWith('127.')
-    ) {
-        throw new ValidationError(ErrorName.INVALID_FORMAT, `Localhost peer addresses are not allowed: ${address}`)
+    if (isPrivateOrLocalAddress(host)) {
+        throw new ValidationError(ErrorName.INVALID_FORMAT, `Private/local peer addresses are not allowed: ${address}`)
     }
 };
+
+export const isPrivateOrLocalAddress = (host: string): boolean => {
+    if (host === 'localhost' || host === '::1') return true
+
+    if (!net.isIPv4(host)) return false
+
+    const parts = host.split('.').map(Number)
+    const [a, b] = parts
+
+    if (a === 127) return true
+    if (a === 10) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    if (a === 0) return true
+
+    return false
+}
 
 export const verify = (publicKey: string, signature: string, message: string) => {
     try {

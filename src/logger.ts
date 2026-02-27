@@ -66,12 +66,18 @@ function shouldLog(level: LogLevel): boolean {
 
 function timestamp(): string {
     const now = new Date()
-    return now.toLocaleTimeString('en-GB', {
+    const date = now.toLocaleDateString('en-GB', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    })
+    const time = now.toLocaleTimeString('en-GB', {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
         hour12: false
     })
+    return `${date} ${time}`
 }
 
 function formatValue(value: any, indent: string = '  '): string {

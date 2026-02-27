@@ -169,12 +169,10 @@ describe('3) transaction validation', () => {
     it('rejects non-conserving transaction with INVALID_TX_CONSERVATION', async () => {
         const s = new FakeSocket('A')
         pm.addPeer(s.asNetSocket())
+        const kp = genKeypair()
         const prevTx = {
             height: 0,
-            outputs: [{
-                pubkey: "1A7D167BFC6329E1258F4883A45B4FDCD436604ADE528F9B72BCE3292A42B494",
-                value: 10
-            }],
+            outputs: [{ pubkey: kp.pubHex, value: 10 }],
             type: "transaction"
         }
         handshake(pm, s)
@@ -182,18 +180,15 @@ describe('3) transaction validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
 
         const txid = hash(canonicalize(prevTx))
+        const txUnsigned = {
+            inputs: [{ outpoint: { index: 0, txid }, sig: null }],
+            outputs: [{ pubkey: kp.pubHex, value: 100 }],
+            type: "transaction",
+        }
+        const sig = signMessageHex(kp.privHex, canonicalize(txUnsigned)!)
         const invalidConservationTx = {
-            inputs: [{
-                outpoint: {
-                    index:0,
-                    txid
-                },
-                sig: "ECFA4C45A474D5EE9EBFC28BEF224996263C7E147400BD64035774578D176B59FF2342B2F9BCA8CFA753991EF9F2EE92FD79B152EF99C6DEC42A68C4B90B7808"
-            }],
-            outputs: [{
-                pubkey: "1A7D167BFC6329E1258F4883A45B4FDCD436604ADE528F9B72BCE3292A42B494",
-                value: 100
-            }],
+            inputs: [{ outpoint: { index: 0, txid }, sig }],
+            outputs: [{ pubkey: kp.pubHex, value: 100 }],
             type: "transaction"
         }
 

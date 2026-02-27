@@ -187,7 +187,7 @@ describe('1) invalid blockchains', () => {
         const coinbase = {
             height: 0,
             outputs: [{
-                pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
+                pubkey: "3effb752170316f5d15d04504190fcf0c8ff75956c68afb2a9b5ba7801ab128c",
                 value: 50 * 10 ** 12 // BLOCK_REWARD
             }],
             type: "transaction"

@@ -11,7 +11,7 @@ import {
     hash,
     _setTargetForTests
 } from '../src/utils'
-import { setupTestEnv, handshake, id } from './helpers/test-utils'
+import { setupTestEnv, handshake, id, genKeypair, signMessageHex } from './helpers/test-utils'
 
 let pm: any
 let s: FakeSocket
@@ -107,12 +107,13 @@ describe('1) block validation', () => {
         s.feedJSON({ type: 'object', object: GENESIS_BLOCK })
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
+
+        const kp1 = genKeypair()
+        const kp2 = genKeypair()
+
         const coinbase = {
             height: 1,
-            outputs: [{
-                pubkey: "5069D943C81EF35D07C26C10D05D6CD18815C5C7D16F30642704C4DA24AA4375",
-                value: BLOCK_REWARD
-            }],
+            outputs: [{ pubkey: kp1.pubHex, value: BLOCK_REWARD }],
             type: "transaction"
         }
         s.feedJSON({ type: 'object', object: coinbase })
@@ -130,32 +131,27 @@ describe('1) block validation', () => {
         await waitForWrite(s, m => m?.type === 'ihaveobject')
         s.clearWritten()
 
+        const tx1Unsigned = {
+            inputs: [{ outpoint: { index: 0, txid: id(coinbase) }, sig: null }],
+            outputs: [{ pubkey: kp2.pubHex, value: 10 }],
+            type: "transaction",
+        }
+        const sig1 = signMessageHex(kp1.privHex, canonicalize(tx1Unsigned)!)
         const tx1 = {
-            inputs: [{
-                outpoint: {
-                    index: 0,
-                    txid: id(coinbase)
-                },
-                sig: "57D26AD7D4921B671B6D1F6655F8577C034893C3AFD70286CD1E6C195A90920EE5D15FC93FC5ECCC4C5B9A108F038623E4A305695535DFE557EA0877CC62D406" 
-            }],
-            outputs: [{
-                pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
-                value: 10
-            }],
+            inputs: [{ outpoint: { index: 0, txid: id(coinbase) }, sig: sig1 }],
+            outputs: [{ pubkey: kp2.pubHex, value: 10 }],
             type: "transaction"
         }
+
+        const tx2Unsigned = {
+            inputs: [{ outpoint: { index: 0, txid: id(coinbase) }, sig: null }],
+            outputs: [{ pubkey: kp2.pubHex, value: 5 }],
+            type: "transaction",
+        }
+        const sig2 = signMessageHex(kp1.privHex, canonicalize(tx2Unsigned)!)
         const tx2 = {
-            inputs: [{
-                outpoint: {
-                    index: 0,
-                    txid: id(coinbase)
-                },
-                sig: "43D8980D80FB791902680E5D55B8568B8C9E6720F26E8C6891BD09261FCEF6240208E0316217ED0F88EE7AEC52F166927F3972E1EFF529E8BF24D969E3666C03"
-            }],
-            outputs: [{
-                pubkey: "pubkey2",
-                value: 10
-            }],
+            inputs: [{ outpoint: { index: 0, txid: id(coinbase) }, sig: sig2 }],
+            outputs: [{ pubkey: kp2.pubHex, value: 5 }],
             type: "transaction"
         }
 
@@ -176,7 +172,7 @@ describe('1) block validation', () => {
         const coinbase = {
             height: 0,
             outputs: [{
-                pubkey: "3EFFB752170316F5D15D04504190FCF0C8FF75956C68AFB2A9B5BA7801AB128C",
+                pubkey: "3effb752170316f5d15d04504190fcf0c8ff75956c68afb2a9b5ba7801ab128c",
                 value: BLOCK_REWARD + 10
             }],
             type: "transaction"

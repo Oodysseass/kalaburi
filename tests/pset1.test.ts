@@ -153,7 +153,7 @@ describe('8) invalid messages -> INVALID_FORMAT', () => {
 
 describe('9) peers persist across reconnect', () => {
     it('remembers peers from previous session', async () => {
-        const givenPeers = ['10.0.0.2:18018']
+        const givenPeers = ['45.32.235.245:18018']
 
         const s1 = new FakeSocket('H1')
         pm.addPeer(s1.asNetSocket())

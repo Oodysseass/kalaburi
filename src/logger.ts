@@ -85,12 +85,21 @@ function formatValue(value: any, indent: string = '  '): string {
     if (value === undefined) return `${colors.yellow}undefined${colors.reset}`
     if (typeof value !== 'object') return `${colors.yellow}${String(value)}${colors.reset}`
 
+    const MAX_ARRAY_DISPLAY = 20
+
     const entries = Array.isArray(value)
         ? value.map<[string, any]>((v, i) => [String(i), v])
         : Object.entries(value)
 
     if (entries.length === 0) {
         return Array.isArray(value) ? '[]' : '{}'
+    }
+
+    if (Array.isArray(value) && value.length > MAX_ARRAY_DISPLAY) {
+        const shown = entries.slice(0, MAX_ARRAY_DISPLAY).map(
+            ([k, v]) => `${indent}${colors.green}${k}${colors.reset} = ${formatValue(v, indent + '  ')}`
+        ).join('\n')
+        return `{\n${shown}\n${indent}${colors.dim}... and ${value.length - MAX_ARRAY_DISPLAY} more${colors.reset}\n${indent.slice(2)}}`
     }
 
     const inner = entries.map(

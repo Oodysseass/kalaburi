@@ -66,8 +66,27 @@ class MiningManager {
         peerManager.fromMining(block.id)
     }
 
+    async calculateMempoolFees(): Promise<number> {
+        let fees = 0
+        for (const txid of mempoolManager.txids) {
+            const tx = await objectManager.get(txid) as Transaction
+            const outputsOfOutpoints = await Promise.all(
+                tx.inputs.map(async (input) => await input.outpoint.getOutput())
+            )
+            const totalInputValue = outputsOfOutpoints.reduce(
+                (acc, output) => acc + (output?.value ?? 0), 0
+            )
+            const totalOutputValue = tx.outputs.reduce(
+                (acc, output) => acc + output.value, 0
+            )
+            fees += totalInputValue - totalOutputValue
+        }
+        return fees
+    }
+
     async createNextBlock(tip: Block) {
-        const coinbase = await this.createCoinbase(tip.height! + 1)
+        const fees = await this.calculateMempoolFees()
+        const coinbase = await this.createCoinbase(tip.height! + 1, fees)
         const txids = [objectManager.id(coinbase), ...mempoolManager.txids]
         return {
             T: TARGET,
@@ -80,12 +99,12 @@ class MiningManager {
         }
     }
 
-    async createCoinbase(height: number) {
+    async createCoinbase(height: number, fees: number = 0) {
         const coinbase = {
             type: "transaction",
             outputs: [{
                 pubkey: process.env.PK,
-                value: BLOCK_REWARD
+                value: BLOCK_REWARD + fees
             }],
             height: height
         }

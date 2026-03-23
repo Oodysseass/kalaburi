@@ -26,6 +26,7 @@ let s2: FakeSocket
 
 beforeEach(async () => {
     pm = new PeerManager()
+    chainManager.longestChain = []
     await setupTestEnv()
 
     s1 = new FakeSocket('A')

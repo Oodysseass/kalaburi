@@ -23,6 +23,7 @@ const fromNetwork = {
 export class ObjectManager {
     constructor(private db: KV<Hash, any> = makeLevelDB('./db')) {}
     pendingFinds: Map<Hash, { resolve: (obj: any) => void, reject: (err: Error) => void }[]> = new Map()
+    validating: Set<Hash> = new Set()
 
     id(object: any) {
         return hash(canonicalize(object))
@@ -65,6 +66,7 @@ export class ObjectManager {
             log.debug(`Object ${shortId(id)} already exists`)
             return true
         }
+        this.validating.add(id)
         try {
             const object = await this.validate(networkObject)
             await this.add(object, object.id)
@@ -84,6 +86,8 @@ export class ObjectManager {
                 this.pendingFinds.delete(id)
             }
             throw err
+        } finally {
+            this.validating.delete(id)
         }
     }
 
@@ -97,11 +101,14 @@ export class ObjectManager {
             return await this.get(objectid)
         } catch (err: any) { }
 
-        log.debug(`Fetching ${shortId(objectid)} from network`)
-        peerManager.broadcast({
-            type: 'getobject',
-            objectid,
-        })
+        const alreadyFetching = this.pendingFinds.has(objectid)
+        if (!alreadyFetching) {
+            log.debug(`Fetching ${shortId(objectid)} from network`)
+            peerManager.broadcast({
+                type: 'getobject',
+                objectid,
+            })
+        }
 
         return new Promise<NetworkObject>((resolve, reject) => {
             let timer: any
@@ -122,17 +129,25 @@ export class ObjectManager {
             waiters.push(entry)
             this.pendingFinds.set(objectid, waiters)
 
-            timer = setTimeout(() => {
-                const arr = this.pendingFinds.get(objectid)
-                if (arr) {
-                    const idx = arr.indexOf(entry)
-                    if (idx >= 0) arr.splice(idx, 1)
-                    if (arr.length === 0) this.pendingFinds.delete(objectid)
-                }
+            const scheduleTimeout = () => {
+                timer = setTimeout(() => {
+                    if (this.validating.has(objectid)) {
+                        scheduleTimeout()
+                        return
+                    }
 
-                log.warn(`Timeout fetching ${shortId(objectid)}`)
-                reject(new ObjectError(ErrorName.UNFINDABLE_OBJECT, `Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`))
-            }, FIND_OBJECT_TIMEOUT)
+                    const arr = this.pendingFinds.get(objectid)
+                    if (arr) {
+                        const idx = arr.indexOf(entry)
+                        if (idx >= 0) arr.splice(idx, 1)
+                        if (arr.length === 0) this.pendingFinds.delete(objectid)
+                    }
+
+                    log.warn(`Timeout fetching ${shortId(objectid)}`)
+                    reject(new ObjectError(ErrorName.UNFINDABLE_OBJECT, `Object ${objectid} not found after ${FIND_OBJECT_TIMEOUT}ms`))
+                }, FIND_OBJECT_TIMEOUT)
+            }
+            scheduleTimeout()
         })
     }
 }

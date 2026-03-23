@@ -8,6 +8,7 @@ import {
     GENESIS_BLOCK,
     GENESIS_BLOCK_ID,
     BLOCK_REWARD,
+    FIND_OBJECT_TIMEOUT,
     hash,
     _setTargetForTests
 } from '../src/utils'
@@ -99,7 +100,7 @@ describe('1) block validation', () => {
         const ihaveobject = await waitForWrite(s, m => m?.type === 'ihaveobject')
         expect(ihaveobject).toBeDefined()
         expect(ihaveobject.objectid).toBe(id(block))
-    })
+    }, FIND_OBJECT_TIMEOUT + 5000)
 
     it('rejects double spending transactions', async () => {
         _setTargetForTests('ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')

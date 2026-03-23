@@ -114,6 +114,7 @@ export default class Peer {
         let messages = this.buffer.split('\n')
 
         while (messages.length > 1) {
+            if (this.socket.destroyed) break
             const message = messages.shift()?.trim() ?? ''
             if (!message) continue
 

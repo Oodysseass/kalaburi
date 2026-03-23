@@ -1,5 +1,6 @@
 import { Duplex } from 'stream'
 import type { Socket } from 'net'
+import { FIND_OBJECT_TIMEOUT } from '../../src/utils'
 
 export class FakeSocket extends Duplex {
     public written: string[] = []
@@ -91,13 +92,13 @@ export const findIndex = (msgs: any[], pred: (m: any) => boolean) =>
 export const countType = (msgs: any[], type: string) =>
     msgs.filter(m => m?.type === type).length
 
-export const waitForWrite = (sock: FakeSocket, pred: (m: any) => boolean) =>
+export const waitForWrite = (sock: FakeSocket, pred: (m: any) => boolean, timeout = FIND_OBJECT_TIMEOUT + 2000) =>
     new Promise<any>((resolve, reject) => {
         const start = Date.now()
         const tick = () => {
             const m = findFirst(iterWrittenJSON(sock), pred)
             if (m) return resolve(m)
-            if (Date.now() - start > 3000) return reject(new Error('timeout'))
+            if (Date.now() - start > timeout) return reject(new Error('timeout'))
             setTimeout(tick, 5)
         }
         tick()

@@ -45,24 +45,10 @@ MINERS=0 PORT=18018 bun run start
 ## Deployment with pm2
 
 ```bash
+cp .env.example .env  # fill in your keys and settings
 bun run build
-pm2 start ecosystem.config.cjs
+pm2 start dist/index.js --name kalaburi
 pm2 save && pm2 startup
-```
-
-Example `ecosystem.config.cjs`:
-
-```js
-module.exports = {
-  apps: [{
-    name: "kalaburi",
-    script: "dist/index.js",
-    env: {
-      PORT: 18018,
-      MINERS: 0
-    }
-  }]
-}
 ```
 
 ## Development

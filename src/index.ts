@@ -5,6 +5,7 @@ import { peerManager } from './peermanager'
 import { chainManager } from './chain'
 import { mempoolManager } from './mempool'
 import { miningManager } from './miningmanager'
+import { startSelfPayer } from './selfpayer'
 import { Logger } from './logger'
 
 const PORT = process.env.PORT || 18018
@@ -15,6 +16,7 @@ await miningManager.init(MINERS)
 await mempoolManager.init()
 await chainManager.init()
 await peerManager.init()
+startSelfPayer()
 
 const server = createServer((socket) => {
     peerManager.addPeer(socket)

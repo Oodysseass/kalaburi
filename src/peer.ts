@@ -23,7 +23,7 @@ import type {
 
 const MAX_BUFFER_SIZE = 1024 * 1024
 const RATE_LIMIT_WINDOW = 10_000
-const RATE_LIMIT_MAX = 100
+const RATE_LIMIT_MAX = 1000
 
 export default class Peer {
     socket: Socket

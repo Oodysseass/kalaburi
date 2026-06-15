@@ -9,8 +9,8 @@ import type { TransactionObject } from './types'
 
 const log = new Logger('selfpayer')
 
-const INTERVAL_MS = 10 * 60 * 1000
-const STARTUP_DELAY_MS = 60 * 1000
+const INTERVAL_MS = 2 * 60 * 1000
+const STARTUP_DELAY_MS = 30 * 1000
 
 function signHex(privHex: string, message: string): string {
     const sigBytes = forge.pki.ed25519.sign({

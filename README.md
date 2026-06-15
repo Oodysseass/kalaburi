@@ -34,7 +34,8 @@ bun run start
 |----------|-------------|---------|
 | `PORT` | Server listening port | `18018` |
 | `MINERS` | Number of mining worker threads (0 to disable) | CPU count |
-| `PK` | Public key for mining rewards | — |
+| `PK` | Public key for mining rewards and self-payments | — |
+| `SK` | Private key used to sign self-payment transactions | — |
 
 ## Running a Full Node (no mining)
 
@@ -77,16 +78,19 @@ bun run bench
 
 ```
 src/
-├── index.ts          # Entry point, TCP server
+├── index.ts          # Entry point, TCP server, bootstraps all managers
 ├── peer.ts           # Per-connection protocol handler
 ├── peermanager.ts    # Peer discovery and connection management
+├── persistence.ts    # Load/save known peers to peers.json
 ├── object.ts         # Object storage and retrieval (LevelDB)
-├── block.ts          # Block validation and UTXO state
+├── block.ts          # Block validation
 ├── transaction.ts    # Transaction validation
+├── utxo.ts           # UTXOSet: applies transactions to track unspent outputs
 ├── chain.ts          # Longest chain tracking and reorgs
 ├── mempool.ts        # Transaction pool
 ├── miningmanager.ts  # Mining coordination
 ├── miningworker.ts   # PoW worker thread
+├── selfpayer.ts      # Periodically broadcasts self-payment transactions
 ├── error.ts          # Error hierarchy
 ├── types.ts          # Zod schemas and type definitions
 ├── utils.ts          # Constants and helpers

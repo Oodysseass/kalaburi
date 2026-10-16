@@ -244,7 +244,7 @@ export default class Peer {
 
     async sendChainTip() {
         const length = chainManager.longestChain.length
-        const blockid = chainManager.longestChain[length - 1]!.id
+        const blockid = chainManager.longestChain[length - 1]!
         const chainTip = {
             type: 'chaintip',
             blockid

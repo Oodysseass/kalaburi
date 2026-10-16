@@ -13,8 +13,8 @@ class MempoolManager {
 
     async init() {
         if (await objectManager.exists('longestChain')) {
-            const blocks = await objectManager.get('longestChain')
-            const block = Block.fromJSON(blocks[blocks.length - 1]!)
+            const blockids = await objectManager.get('longestChain')
+            const block = await objectManager.get(blockids[blockids.length - 1]!) as Block
             this.currentState = new UTXOSet(block.state!.utxos)
         }
         this.txids = []
@@ -49,10 +49,11 @@ class MempoolManager {
         }
     }
 
-    async handleReorg(oldChain: Block[], newChain: Block[], commonHeight: number) {
-        this.currentState = new UTXOSet(newChain[newChain.length - 1]!.state!.utxos)
-        const removedTxids = oldChain.slice(commonHeight + 1)
-                             .flatMap(blk => blk.txids)
+    async handleReorg(oldChain: Hash[], newChain: Hash[], commonHeight: number) {
+        const newTip = await objectManager.get(newChain[newChain.length - 1]!) as Block
+        this.currentState = new UTXOSet(newTip.state!.utxos)
+        const removedBlocks = await Promise.all(oldChain.slice(commonHeight + 1).map(async blkid => await objectManager.get(blkid) as Block))
+        const removedTxids = removedBlocks.flatMap(blk => blk.txids)
 
         let removedTxs = await Promise.all(removedTxids.map(async txid => await objectManager.get(txid) as Transaction))
         const oldTxs = await Promise.all(this.txids.map(async txid => await objectManager.get(txid) as Transaction))

@@ -10,9 +10,10 @@ import { Logger } from './logger'
 
 const PORT = process.env.PORT || 18018
 const MINERS = parseInt(process.env.MINERS || os.cpus().length.toString())
+const MINER_TYPE = process.env.MINER_TYPE || 'js'
 const log = new Logger('server')
 
-await miningManager.init(MINERS)
+await miningManager.init(MINERS, MINER_TYPE)
 await mempoolManager.init()
 await chainManager.init()
 await peerManager.init()

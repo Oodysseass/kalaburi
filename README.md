@@ -34,8 +34,19 @@ bun run start
 |----------|-------------|---------|
 | `PORT` | Server listening port | `18018` |
 | `MINERS` | Number of mining worker threads (0 to disable) | CPU count |
+| `MINER_TYPE` | Mining backend: `js` or `rust` | `js` |
+| `RUST_MINER_PATH` | Path to the rust miner binary | `../blake2s-gpu-miner/target/release/miner` |
 | `PK` | Public key for mining rewards and self-payments | — |
 | `SK` | Private key used to sign self-payment transactions | — |
+
+## Rust Miner
+
+Set `MINER_TYPE=rust` to mine with the CPU miner from [blake2s-gpu-miner](https://github.com/Oodysseass/blake2s-gpu-miner) instead of the JS workers. Each of the `MINERS` workers runs as a separate `miner --stdin` process.
+
+```bash
+git clone https://github.com/Oodysseass/blake2s-gpu-miner ../blake2s-gpu-miner
+cd ../blake2s-gpu-miner && cargo build --release
+```
 
 ## Running a Full Node (no mining)
 

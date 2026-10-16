@@ -1,5 +1,7 @@
 import crypto from 'crypto'
 import { Worker } from 'worker_threads'
+import { execFile, type ChildProcess } from 'child_process'
+import canonicalize from 'canonicalize'
 import { objectManager } from './object'
 import { peerManager } from './peermanager'
 import { mempoolManager } from './mempool'
@@ -11,14 +13,24 @@ import type { BlockObject, TransactionObject } from './types'
 
 const log = new Logger('miner')
 
+const RUST_MINER_PATH = process.env.RUST_MINER_PATH || '../blake2s-gpu-miner/target/release/miner'
+
 class MiningManager {
     workers: Worker[] = []
+    rustMiners: ChildProcess[] = []
+    numWorkers = 0
+    minerType = 'js'
     totalHashes = 0
     workerRates = new Map<number, number>()
     miningStartTime = 0
 
-    async init(numWorkers: number) {
-        log.info(`Starting ${numWorkers} mining workers`)
+    async init(numWorkers: number, minerType: string = 'js') {
+        this.numWorkers = numWorkers
+        this.minerType = minerType
+        log.info(`Starting ${numWorkers} ${minerType} mining workers`)
+        if (minerType === 'rust') {
+            return
+        }
         for (let i = 0; i < numWorkers; i++) {
             const worker = new Worker(new URL("./miningworker.js", import.meta.url))
             this.workers.push(worker)
@@ -36,15 +48,41 @@ class MiningManager {
     async onNewBlock(tip: Block) {
         const block = await this.createNextBlock(tip)
         this.workers.forEach(worker => worker.postMessage({ type: "abort" }))
+        this.stopRustMiners()
 
         this.totalHashes = 0
         this.miningStartTime = Date.now()
 
+        if (this.minerType === 'rust') {
+            this.startRustMiners(block)
+        }
         this.workers.forEach(worker => {
             block.nonce = this.randomNonce()
             worker.postMessage({ type: "newBlock", block })
         })
         log.debug(`Mining on block ${shortId(tip.id)} at height ${tip.height}`)
+    }
+
+    startRustMiners(block: any) {
+        for (let i = 0; i < this.numWorkers; i++) {
+            const miner = execFile(RUST_MINER_PATH, ['--stdin'], (err, stdout) => {
+                if (err) {
+                    if (!miner.killed) log.error('Rust miner failed', err.message)
+                    return
+                }
+                const result = JSON.parse(stdout)
+                this.totalHashes += result.hashes
+                this.stopRustMiners()
+                this.onMinedBlock(result.block)
+            })
+            miner.stdin!.end(canonicalize(block))
+            this.rustMiners.push(miner)
+        }
+    }
+
+    stopRustMiners() {
+        this.rustMiners.forEach(miner => miner.kill())
+        this.rustMiners = []
     }
 
     async onMinedBlock(tip: BlockObject) {
